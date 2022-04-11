@@ -1,0 +1,122 @@
+mtl1-1
+Start eval freesolv
+1.5574437505966876 
+Start eval lipo
+0.9809062428826252 
+
+mtl2-1
+Start eval freesolv
+2.808950954145898 
+Start eval lipo
+0.9902802834770447 
+
+mtl2-2
+Start eval freesolv
+2.5673009650959617 
+Start eval lipo
+0.9959827180380648 
+
+mtl2-3
+Start eval freesolv
+2.9490366219197273 
+Start eval lipo
+1.0250652546302954 
+
+mtl2-4
+Start eval freesolv
+3.2390165310065475 
+Start eval lipo
+1.1252387236476245 
+
+mtl3-1
+Start eval freesolv
+mtl3-1
+Start eval freesolv
+mtl3-1
+Start eval freesolv
+mtl3-1
+Start eval freesolv
+mtl3-1
+Start eval freesolv
+1.7192861821869898 
+Start eval lipo
+0.9908354116279524 
+
+mtl3-1
+Start eval freesolv
+1.6360071494015807 
+Start eval lipo
+1.0033965398401878 
+
+mtl3-1
+Start eval freesolv
+1.5509441981262377 
+Start eval lipo
+0.9971841712178475 
+
+mtl3-1
+Start eval freesolv
+1.5509441981262377 
+Start eval lipo
+13.351638618481669 
+
+mtl3-1
+Start eval freesolv
+7.2526627987053836 
+Start eval lipo
+0.9971841712178475 
+
+mtl3-2
+Start eval freesolv
+1.649260127090339 
+Start eval lipo
+0.9968398030129485 
+
+mtl3-2
+Start eval freesolv
+1.6858324468321508 
+Start eval lipo
+1.016284578878628 
+
+mtl3-2
+Start eval freesolv
+1.6236155180139544 
+Start eval lipo
+1.02026613518421 
+
+mtl3-3
+Start eval freesolv
+1.7176529190411676 
+Start eval lipo
+1.0416963308058595 
+
+mtl3-4
+Start eval freesolv
+1.607790140095831 
+Start eval lipo
+1.0986871756442642 
+
+mtl_f-1-1
+Start eval freesolv
+3.1637908463984012 
+Start eval lipo
+1.1582272463990866 
+Start eval esol
+1.8309590686019495 
+
+mtl_f-2-1
+Start eval freesolv
+3.8878252888248785 
+Start eval lipo
+1.1534047068058937 
+Start eval esol
+2.4141362935351434 
+
+mtl_f-3-1
+Start eval freesolv
+3.8871877398350243 
+Start eval lipo
+1.1037770153349669 
+Start eval esol
+2.0331063562417104 
+

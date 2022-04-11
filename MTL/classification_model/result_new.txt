@@ -1,0 +1,439 @@
+mtl20
+Start eval bace.csv
+76.15894039735099 %
+AUC:0.8017
+Start eval bbbp.csv
+89.7560975609756 %
+AUC:0.9296
+Start eval clintox.csv
+97.29729729729729 %
+AUC:0.9637
+Start eval HIV.csv
+95.05167173252279 %
+AUC:0.7202
+Start eval muv.csv
+99.59568733153638 %
+AUC:0.5025
+Start eval tox21.csv
+95.87061252580867 %
+AUC:0.7079
+Start eval sider.csv
+63.1578947368421 %
+AUC:0.6585
+
+mtl22
+Start eval bace.csv
+79.47019867549669 %
+AUC:0.8687
+Start eval bbbp.csv
+89.02439024390245 %
+AUC:0.2791
+Start eval clintox.csv
+97.63513513513513 %
+AUC:0.9096
+Start eval HIV.csv
+95.59878419452887 %
+AUC:0.6702
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.5333
+Start eval tox21.csv
+97.45354439091535 %
+AUC:0.7102
+Start eval sider.csv
+62.45614035087719 %
+AUC:0.5934
+
+mtl25
+Start eval bace.csv
+76.82119205298014 %
+AUC:0.8475
+Start eval bbbp.csv
+89.26829268292683 %
+AUC:0.9261
+Start eval clintox.csv
+96.62162162162163 %
+AUC:0.9439
+Start eval HIV.csv
+96.1823708206687 %
+AUC:0.7239
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.7872
+Start eval tox21.csv
+97.17825189263593 %
+AUC:0.7233
+Start eval sider.csv
+62.10526315789474 %
+AUC:0.6735
+
+mtl24
+Start eval bace.csv
+79.47019867549669 %
+AUC:0.8496
+Start eval bbbp.csv
+91.70731707317073 %
+AUC:0.9355
+Start eval clintox.csv
+95.94594594594595 %
+AUC:0.9294
+Start eval HIV.csv
+96.14589665653496 %
+AUC:0.7487
+Start eval muv.csv
+99.6967654986523 %
+AUC:0.5726
+Start eval tox21.csv
+96.7653131452168 %
+AUC:0.7247
+Start eval sider.csv
+63.1578947368421 %
+AUC:0.6889
+
+mtl26
+Start eval bace.csv
+70.86092715231788 %
+AUC:0.8079
+Start eval bbbp.csv
+90.97560975609755 %
+AUC:0.9510
+Start eval clintox.csv
+97.97297297297297 %
+AUC:0.9566
+Start eval HIV.csv
+95.14893617021276 %
+AUC:0.7168
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.6856
+Start eval tox21.csv
+96.55884377150723 %
+AUC:0.7035
+Start eval sider.csv
+60.0 %
+AUC:0.6341
+
+mtl23
+Start eval bace.csv
+78.1456953642384 %
+AUC:0.8376
+Start eval bbbp.csv
+90.73170731707317 %
+AUC:0.9395
+Start eval clintox.csv
+97.29729729729729 %
+AUC:0.9564
+Start eval HIV.csv
+95.92705167173253 %
+AUC:0.7094
+Start eval muv.csv
+99.73045822102426 %
+AUC:0.6735
+Start eval tox21.csv
+96.21472814865795 %
+AUC:0.6641
+Start eval sider.csv
+62.10526315789474 %
+AUC:0.7027
+
+mtl25
+Start eval bace.csv
+76.82119205298014 %
+AUC:0.8475
+Start eval bbbp.csv
+89.26829268292683 %
+AUC:0.9261
+Start eval clintox.csv
+96.62162162162163 %
+AUC:0.9439
+Start eval HIV.csv
+96.1823708206687 %
+AUC:0.7239
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.7872
+Start eval tox21.csv
+97.17825189263593 %
+AUC:0.7233
+Start eval sider.csv
+62.10526315789474 %
+AUC:0.6735
+
+mtl27
+Start eval bace.csv
+59.271523178807946 %
+AUC:0.5000
+Start eval bbbp.csv
+89.26829268292683 %
+AUC:0.9503
+Start eval clintox.csv
+97.63513513513513 %
+AUC:0.9298
+Start eval HIV.csv
+96.43768996960486 %
+AUC:0.7541
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.5000
+Start eval tox21.csv
+97.10942876806607 %
+AUC:0.7150
+Start eval sider.csv
+60.0 %
+AUC:0.6285
+
+mtl28
+Start eval bace.csv
+78.47682119205298 %
+AUC:0.8468
+Start eval bbbp.csv
+89.51219512195122 %
+AUC:0.9310
+Start eval clintox.csv
+95.60810810810811 %
+AUC:0.9367
+Start eval HIV.csv
+95.97568389057751 %
+AUC:0.7361
+Start eval muv.csv
+99.66307277628033 %
+AUC:0.5725
+Start eval tox21.csv
+97.31589814177563 %
+AUC:0.6841
+Start eval sider.csv
+58.94736842105263 %
+AUC:0.6340
+
+mtl28
+Start eval bace.csv
+78.80794701986756 %
+AUC:0.8433
+Start eval bbbp.csv
+91.46341463414635 %
+AUC:0.8951
+Start eval clintox.csv
+96.95945945945945 %
+AUC:0.9317
+Start eval HIV.csv
+95.82978723404256 %
+AUC:0.6982
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.3127
+Start eval tox21.csv
+96.49002064693737 %
+AUC:0.6735
+Start eval sider.csv
+62.80701754385965 %
+AUC:0.6801
+
+mtl30
+Start eval bace.csv
+77.1523178807947 %
+AUC:0.8327
+Start eval bbbp.csv
+87.8048780487805 %
+AUC:0.9143
+Start eval clintox.csv
+97.63513513513513 %
+AUC:0.9564
+Start eval HIV.csv
+95.7082066869301 %
+AUC:0.7195
+Start eval muv.csv
+99.66307277628033 %
+AUC:0.3982
+Start eval tox21.csv
+90.70887818306952 %
+AUC:0.7131
+Start eval sider.csv
+63.85964912280702 %
+AUC:0.6565
+
+mtl31
+Start eval bace.csv
+80.13245033112582 %
+AUC:0.8615
+Start eval bbbp.csv
+90.2439024390244 %
+AUC:0.9415
+Start eval clintox.csv
+97.63513513513513 %
+AUC:0.9711
+Start eval HIV.csv
+95.90273556231003 %
+AUC:0.7286
+Start eval muv.csv
+99.76415094339623 %
+AUC:0.5788
+Start eval tox21.csv
+96.7653131452168 %
+AUC:0.7187
+Start eval sider.csv
+60.35087719298246 %
+AUC:0.6539
+
+mtl25
+Start eval bace.csv
+76.82119205298014 %
+AUC:0.8475
+Start eval bbbp.csv
+89.26829268292683 %
+AUC:0.9261
+Start eval clintox.csv
+96.62162162162163 %
+AUC:0.9439
+Start eval HIV.csv
+96.1823708206687 %
+AUC:0.7239
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.7872
+Start eval tox21.csv
+97.17825189263593 %
+AUC:0.7233
+Start eval sider.csv
+62.10526315789474 %
+AUC:0.6735
+
+mtl32
+Start eval bace.csv
+mtl32
+Start eval bace.csv
+71.52317880794702 %
+AUC:0.7966
+Start eval bbbp.csv
+88.53658536585365 %
+AUC:0.8478
+Start eval clintox.csv
+96.28378378378379 %
+AUC:0.8836
+Start eval HIV.csv
+96.04863221884499 %
+AUC:0.7007
+Start eval muv.csv
+99.73045822102426 %
+AUC:0.5030
+Start eval tox21.csv
+96.9029593943565 %
+AUC:0.7066
+Start eval sider.csv
+60.0 %
+AUC:0.6522
+
+mtl33
+Start eval bace.csv
+79.80132450331126 %
+AUC:0.8715
+Start eval bbbp.csv
+89.7560975609756 %
+AUC:0.9398
+Start eval clintox.csv
+97.97297297297297 %
+AUC:0.9749
+Start eval HIV.csv
+95.96352583586626 %
+AUC:0.7213
+Start eval muv.csv
+99.6967654986523 %
+AUC:0.7244
+Start eval tox21.csv
+96.7653131452168 %
+AUC:0.7523
+Start eval sider.csv
+62.45614035087719 %
+AUC:0.6668
+
+mtl34
+Start eval bace.csv
+80.4635761589404 %
+AUC:0.8557
+Start eval bbbp.csv
+91.21951219512195 %
+AUC:0.9360
+Start eval clintox.csv
+96.95945945945945 %
+AUC:0.9401
+Start eval HIV.csv
+96.17021276595744 %
+AUC:0.7369
+Start eval muv.csv
+99.76415094339623 %
+AUC:0.7094
+Start eval tox21.csv
+96.49002064693737 %
+AUC:0.7202
+Start eval sider.csv
+62.80701754385965 %
+AUC:0.6900
+
+mtl35
+Start eval bace.csv
+79.80132450331126 %
+AUC:0.8464
+Start eval bbbp.csv
+59.51219512195122 %
+AUC:0.8381
+Start eval clintox.csv
+54.054054054054056 %
+AUC:0.9020
+Start eval HIV.csv
+96.08510638297872 %
+AUC:0.7296
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.7377
+Start eval tox21.csv
+97.10942876806607 %
+AUC:0.7267
+Start eval sider.csv
+54.73684210526316 %
+AUC:0.6121
+
+mtl36
+Start eval bace.csv
+78.1456953642384 %
+AUC:0.8530
+Start eval bbbp.csv
+61.21951219512195 %
+AUC:0.8628
+Start eval clintox.csv
+54.729729729729726 %
+AUC:0.8809
+Start eval HIV.csv
+95.76899696048632 %
+AUC:0.7371
+Start eval muv.csv
+99.7978436657682 %
+AUC:0.5851
+Start eval tox21.csv
+96.69649002064693 %
+AUC:0.6909
+Start eval sider.csv
+52.63157894736842 %
+AUC:0.5724
+
+mtl37
+Start eval bace.csv
+78.47682119205298 %
+AUC:0.8420
+Start eval bbbp.csv
+60.24390243902439 %
+AUC:0.8408
+Start eval clintox.csv
+56.08108108108108 %
+AUC:0.8657
+Start eval HIV.csv
+96.06079027355624 %
+AUC:0.7327
+Start eval muv.csv
+99.76415094339623 %
+AUC:0.5231
+Start eval tox21.csv
+96.83413626978665 %
+AUC:0.6506
+Start eval sider.csv
+52.63157894736842 %
+AUC:0.6052
+
