@@ -1,3 +1,5 @@
+import argparse
+import os
 import time
 from typing import List
 
@@ -180,44 +182,42 @@ def get_array(smiles):
     return torch.tensor(x_id), torch.tensor(x_seg)
 
 class MTL_regression(nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size_1,hidden_size_2,hidden_size_3):
         super(MTL_regression, self).__init__()
         self.regression = nn.Sequential(
             # 第一个隐含层
-            nn.Linear(input_size, hidden_size),
+            nn.Linear(input_size, hidden_size_1),
             nn.ReLU(),
-            nn.Linear(hidden_size, 256),
+            nn.Linear(hidden_size_1, hidden_size_2),
             nn.ReLU(),
-            nn.Linear(256, 128),
+            nn.Linear(hidden_size_2, hidden_size_3),
             nn.ReLU(),
+            nn.Linear(hidden_size_3, 1)
         )
-        # 回归预测层
-        self.predict = nn.Linear(128, 1)
     # 定义网络前向传播路径
     def forward(self, x):
         output = self.regression(x)
-        output = self.predict(output)
         # 输出一个一维向量
         return output[:, 0]
 
 
 class MTL_classification(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes) -> None:
+    def __init__(self, input_size, hidden_size_1,hidden_size_2,hidden_size_3, num_classes) -> None:
         super().__init__()
 
-        self.layer = nn.Sequential(
-        nn.Linear(input_size, hidden_size),  # 输入层到隐藏层
+        self.classification = nn.Sequential(
+        nn.Linear(input_size, hidden_size_1),  # 输入层到隐藏层
         nn.ReLU(),
-        nn.Linear(hidden_size, 256), # 隐藏层到输出层
+        nn.Linear(hidden_size_1, hidden_size_2), # 隐藏层到输出层
         nn.ReLU(),
-        nn.Linear(256, 128),
+        nn.Linear(hidden_size_2, hidden_size_3),
         nn.ReLU(),
-        nn.Linear(128, num_classes)
+        nn.Linear(hidden_size_3, num_classes)
         # nn.Dropout(p=0.01),  # dropout
         )
 
     def forward(self, x):
-        out = self.layer(x)
+        out = self.classification(x)
         return out
 
 def load_vocal():
@@ -327,7 +327,7 @@ def train_regression(dataset_name,dataloader):
     return loss_list
 
 
-def train_classificition(dataset_name,dataloader):
+def train_classification(dataset_name, dataloader):
     """
     对一个数据集进行训练
     :param dataset_name:
@@ -362,7 +362,7 @@ def train_classificition(dataset_name,dataloader):
 
 
 def get_classification_accuracy(testloader,dataset_name):
-    model = torch.load('classification_single_model/classification_{}.pt'.format(dataset_name))
+    model = torch.load('single_model/classification_single_model/classification_{}.pt'.format(dataset_name))
     model.eval()
 
     with torch.no_grad():
@@ -380,7 +380,7 @@ def get_classification_accuracy(testloader,dataset_name):
 
 
 def get_classification_auc_roc(testloader,dataset_name):
-    model = torch.load('classification_single_model/classification_{}.pt'.format(dataset_name))
+    model = torch.load('single_model/classification_single_model/classification_{}.pt'.format(dataset_name))
     model.eval()
 
     with torch.no_grad():
@@ -399,31 +399,9 @@ def get_classification_auc_roc(testloader,dataset_name):
 
     return auc
 
-def get_classification_prc_roc(testloader,dataset_name):
-    model = torch.load('classification_single_model/classification_{}.pt'.format(dataset_name))
-    model.eval()
-
-    with torch.no_grad():
-        prob_all = []
-        label_all = []
-        for (data, label) in (testloader):
-            prob = model(data.to(device))  # 表示模型的预测输出
-            print(prob)
-            prob_all.extend(
-                prob[:, 1].cpu().numpy())  # prob[:,1]返回每一行第二列的数，根据该函数的参数可知，y_score表示的较大标签类的分数，因此就是最大索引对应的那个值，而不是最大索引值
-            label_all.extend(label)
-        precision, recall, thresholds = precision_recall_curve(label_all, prob_all)
-        # print(label_all)
-        # print("----------------------")
-        # print(prob_all)
-        prc_auc= auc(recall, precision)
-
-        prc_auc = precision_score(label_all, prob_all)
-
-    return prc_auc
 
 def get_regression_RMSE(testloader,dataset_name):
-    model = torch.load('regression_single_nodel/regression_{}.pt'.format(dataset_name))
+    model = torch.load('single_model/regression_single_model/regression_{}.pt'.format(dataset_name))
     model.eval()
     with torch.no_grad():
         prob_all = []
@@ -449,98 +427,109 @@ def get_tensor_data(dataset_name):
     return c[0],c[1],c[2],c[3]
 
 
+
+
 if __name__ == "__main__":
-    test = {}
-    testloader_list = []
-    model_result = {}
+
+    parser = argparse.ArgumentParser(description='单任务模式')
+    parser.add_argument('--num_epochs', '-n', type=int, default=2000, help="迭代次数")
+    parser.add_argument('--mode', '-m', choices=('train', 'test'), default='test',
+                        help="模式选择")
+    parser.add_argument('--learning_rate', '-l', type=float, default=0.001, help="学习率")
+    parser.add_argument('--batch_size', '-b', type=int, default=200, help="batch大小")
+    parser.add_argument('--hidden_size_1', '-h1', type=int, default=500, help="第二层神经元数量")
+    parser.add_argument('--hidden_size_2', '-h2', type=int, default=256, help="第三层神经元数量")
+    parser.add_argument('--hidden_size_3', '-h3', type=int, default=128, help="第四层神经元数量")
+
+    args = parser.parse_args()
 
     input_size = 1024
-    hidden_size = 500
+    hidden_size_1 = args.hidden_size_1
+    hidden_size_2 = args.hidden_size_2
+    hidden_size_3 = args.hidden_size_3
     num_classes = 2
-    learning_rate = 0.001
-    batch_size = 200
-    num_epochs = 2000
+    learning_rate = args.learning_rate
+    batch_size = args.batch_size
+    num_epochs = args.num_epochs
+    mode = args.mode
+
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     vocab = load_vocal()
     trfm = load_transformer(vocab)
 
-    t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
-     "freesolv.csv", "lipo.csv"]
     datasets_name = get_all_dataset()
 
+    if mode == "train":
+        t = input("Please save trained model somewhere else,press enter to continue.")
 
+        datasets_name = ["esol.csv", "freesolv.csv", "lipo.csv"]
+        # 单任务模式,回归
+        for index, dataset_name in enumerate(datasets_name):
+            file_name = dataset_name.split(".")[0]
+            mtl_regression = MTL_regression(input_size, hidden_size_1,hidden_size_2,hidden_size_3).to(device)
+            # 设置为 训练 模式
+            mtl_regression.train()
 
+            dataloader, testloader = load_train_set_test_set(dataset_name)
 
-    datasets_name = ["esol.csv", "freesolv.csv", "lipo.csv"]
-    # 单任务模式,回归
-    for index, dataset_name in enumerate(datasets_name):
-        file_name = dataset_name.split(".")[0]
-        mtl_regression = MTL_regression(input_size, hidden_size).to(device)
-        # 设置为 训练 模式
-        mtl_regression.train()
+            loss_list = train_regression(dataset_name, dataloader)
+            # testloader_list.append(testloader)
+            # model_result["name"] = dataset_name
+            plt.plot(loss_list)
+            plt.title(dataset_name.split(".")[0])
+            plt.show()
+            print("save {} model".format(dataset_name))
+            torch.save(mtl_regression, 'single_model/regression_single_model/regression_{}.pt'.format(file_name))
 
-        dataloader, testloader = load_train_set_test_set(dataset_name)
+        datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        # 单任务模式,分类
+        for index,dataset_name in enumerate(datasets_name):
+            file_name = dataset_name.split(".")[0]
+            # 定义模型
+            mtl_classification = MTL_classification(input_size, hidden_size_1,hidden_size_2,hidden_size_3, num_classes).to(device)
+            # 设置为 训练 模式
+            mtl_classification.train()
 
-        loss_list = train_regression(dataset_name, dataloader)
-        # testloader_list.append(testloader)
-        # model_result["name"] = dataset_name
-        plt.plot(loss_list)
-        plt.title(dataset_name.split(".")[0])
-        plt.show()
-        print("save {} model".format(dataset_name))
-        torch.save(mtl_regression, 'regression_single_nodel/regression_{}.pt'.format(file_name))
+            dataloader, testloader = load_train_set_test_set(dataset_name)
 
-    # datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-    # # datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv"]
-    # # 单任务模式,分类
-    # for index,dataset_name in enumerate(datasets_name):
-    #     file_name = dataset_name.split(".")[0]
-    #     # 定义模型
-    #     mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
-    #     # 设置为 训练 模式
-    #     mtl_classification.train()
-    #
-    #     dataloader, testloader = load_train_set_test_set(dataset_name)
-    #
-    #     loss_list = train_classificition(dataset_name,dataloader)
-    #     # testloader_list.append(testloader)
-    #     # model_result["name"] = dataset_name
-    #     plt.plot(loss_list)
-    #     plt.title(dataset_name.split(".")[0])
-    #     plt.show()
-    #     print("save {} model".format(dataset_name))
-    #     torch.save(mtl_classification, 'classification_single_model/classification_{}.pt'.format(file_name))
-    #     print("test {} model".format(dataset_name))
-    #     # for index,testloader in enumerate(testloader_list):
-    #     accuracy = get_classification_accuracy(testloader,file_name)
-    #     auc_roc = get_classification_auc_roc(testloader,file_name)
-    #     print("{} %".format(accuracy))
-    #     print("AUC:{:.4f}".format(auc_roc))
+            loss_list = train_classification(dataset_name, dataloader)
+            # testloader_list.append(testloader)
+            # model_result["name"] = dataset_name
+            plt.plot(loss_list)
+            plt.title(dataset_name.split(".")[0])
+            plt.show()
+            print("save {} model".format(dataset_name))
+            torch.save(mtl_classification, 'single_model/classification_single_model/classification_{}.pt'.format(file_name))
+            print("test {} model".format(dataset_name))
+            # for index,testloader in enumerate(testloader_list):
+            accuracy = get_classification_accuracy(testloader,file_name)
+            auc_roc = get_classification_auc_roc(testloader,file_name)
+            print("{} %".format(accuracy))
+            print("AUC:{:.4f}".format(auc_roc))
+    else:
+        # 测试分类
+        test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        for test_dataset_name in test_datasets_name:
+            file_name = test_dataset_name.split(".")[0]
+            print("Start eval {}".format(file_name))
+            _,testloader = load_train_set_test_set(test_dataset_name)
+            accuracy = get_classification_accuracy(testloader, file_name)
+            if test_dataset_name == "muv.csv":
+                score = get_classification_auc_roc(testloader, file_name)
+            else:
+                score = get_classification_auc_roc(testloader, file_name)
+            print("{} %".format(accuracy))
+            print("AUC:{:.4f}".format(score))
 
-    # # 测试分类
-    # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-    # # test_datasets_name = ["muv.csv"]
-    # # mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
-    # for test_dataset_name in test_datasets_name:
-    #     file_name = test_dataset_name.split(".")[0]
-    #     print("Start eval {}".format(file_name))
-    #     _,testloader = load_train_set_test_set(test_dataset_name)
-    #     accuracy = get_classification_accuracy(testloader, file_name)
-    #     if test_dataset_name == "muv.csv":
-    #         score = get_classification_auc_roc(testloader, file_name)
-    #     else:
-    #         score = get_classification_auc_roc(testloader, file_name)
-    #     print("{} %".format(accuracy))
-    #     print("AUC:{:.4f}".format(score))
+        # 测试回归
+        test_datasets_name = ["esol.csv", "freesolv.csv", "lipo.csv"]
+        for test_dataset_name in test_datasets_name:
+            file_name = test_dataset_name.split(".")[0]
+            print("Start eval {}".format(file_name))
+            _,testloader = load_train_set_test_set(test_dataset_name)
+            RMSE = get_regression_RMSE(testloader, file_name)
+            print("{} ".format(RMSE))
 
-    # 测试回归
-    test_datasets_name = ["esol.csv", "freesolv.csv", "lipo.csv"]
-    # mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
-    for test_dataset_name in test_datasets_name:
-        file_name = test_dataset_name.split(".")[0]
-        print("Start eval {}".format(file_name))
-        _,testloader = load_train_set_test_set(test_dataset_name)
-        RMSE = get_regression_RMSE(testloader, file_name)
-        print("{} ".format(RMSE))
-
+    os.system("pause")

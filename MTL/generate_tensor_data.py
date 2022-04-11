@@ -7,6 +7,7 @@ import torch
 from utils import split
 from pretrain_trfm import TrfmSeq2seq
 from build_vocab import WordVocab
+
 def get_all_dataset() -> List[str]:
     """
     获取 dataset 文件名
@@ -207,51 +208,35 @@ def prepare_data(dataset_name):
 
     return X,Y,X_test,Y_test
 
+if __name__ == "__main__":
 
-pad_index = 0
-unk_index = 1
-eos_index = 2
-sos_index = 3
-mask_index = 4
-vocab = load_vocal()
-trfm = load_transformer(vocab)
+    pad_index = 0
+    unk_index = 1
+    eos_index = 2
+    sos_index = 3
+    mask_index = 4
+    vocab = load_vocal()
+    trfm = load_transformer(vocab)
 
-t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
-     "freesolv.csv", "lipo.csv"]
-datasets_name = get_all_dataset()
-# datasets_name = ["bace.csv"]
+    t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
+         "freesolv.csv", "lipo.csv"]
+    datasets_name = get_all_dataset()
+    # datasets_name = ["bace.csv"]
 
-import numpy
-for dataset_name in datasets_name:
-    s = []
-    X, Y, X_test, Y_test = prepare_data(dataset_name)
-    file_name = dataset_name.split(".")[0]
-    s.append(X)
-    s.append(Y)
-    s.append(X_test)
-    s.append(Y_test)
+    import numpy
+    for dataset_name in datasets_name:
+        s = []
+        X, Y, X_test, Y_test = prepare_data(dataset_name)
+        file_name = dataset_name.split(".")[0]
+        s.append(X)
+        s.append(Y)
+        s.append(X_test)
+        s.append(Y_test)
 
-    # s_numpy = [x.numpy() for x in s] #步骤1
-    numpy.save("tensor_data/{}_tensor.npy".format(file_name),s)
+        # s_numpy = [x.numpy() for x in s] #步骤1
+        numpy.save("tensor_data/{}_tensor.npy".format(file_name),s)
 
-# for dataset_name in datasets_name:
-#     X, Y, X_test, Y_test = prepare_data(dataset_name)
-#     file_name = dataset_name.split(".")[0]
-#     print(X)
-#     with open("tensor_data/{}/{}.tensor".format(file_name,"X"),"wb") as f:
-#         torch.save(X,f)
 
-# b = numpy.load("tensor_data/tensor.npy", allow_pickle=True)
-# c = [torch.tensor(x) for x in b]
-#
-# for i in c:
-#     print(len((i)))
-
-# for dataset_name in datasets_name:
-#     file_name = dataset_name.split(".")[0]
-#
-#     p = torch.load("tensor_data/{}.tensor".format(file_name))
-#     print(p)
 '''
 [[-0.04837199  0.05349776 -0.27410927 ...  0.4407835   1.0344229
    0.5548961 ]

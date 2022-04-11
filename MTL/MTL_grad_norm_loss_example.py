@@ -28,7 +28,7 @@ import torch
 from torch.utils.data.sampler import RandomSampler
 from AutomaticWeightedLoss import AutomaticWeightedLoss
 
-from model import RegressionModel, RegressionTrain
+from model import RegressionGradNormLossModel, RegressionGradNormLossTrain
 
 pad_index = 0
 unk_index = 1
@@ -938,7 +938,7 @@ def get_tensor_data(dataset_name):
     print("加载 {} tensor 数据成功".format(file_name))
     return c[0], c[1], c[2], c[3]
 
-def regression_mode_2(multi_tasks):
+def regression_mode_grad_norm_loss(multi_tasks):
     n_tasks = len(multi_tasks)
 
     datas = []
@@ -946,14 +946,14 @@ def regression_mode_2(multi_tasks):
         data, test = load_train_set_test_set(multi_task)
         datas.append(data)
 
-    train = RegressionModel(n_tasks)
+    model = RegressionGradNormLossModel(n_tasks)
 
-    model = RegressionTrain(train)
+    train = RegressionGradNormLossTrain(model)
 
     if torch.cuda.is_available():
-        model.cuda()
         train.cuda()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        model.cuda()
+    optimizer = torch.optim.Adam(train.parameters(), lr=learning_rate)
     weights = []
     task_losses = []
     loss_ratios = []
@@ -971,9 +971,9 @@ def regression_mode_2(multi_tasks):
                 X = X.cuda()
                 ts = ts.cuda()
             # evaluate each task loss L_i(t)
-            task_loss = model(X, ts,index)  # this will do a forward pass in the model and will also evaluate the loss
+            task_loss = train(X, ts,index)  # this will do a forward pass in the model and will also evaluate the loss
             # compute the weighted loss w_i(t) * L_i(t)
-            weighted_task_loss = torch.mul(model.weights, task_loss)
+            weighted_task_loss = torch.mul(train.weights, task_loss)
             # initialize the initial loss L(0) if t=0
             if t == 0:
                 # set L(0)
@@ -992,11 +992,11 @@ def regression_mode_2(multi_tasks):
 
             # set the gradients of w_i(t) to zero because these gradients have to be updated using the GradNorm loss
             # print('Before turning to 0: {}'.format(model.weights.grad))
-            model.weights.grad.data = model.weights.grad.data * 0.0
+            train.weights.grad.data = train.weights.grad.data * 0.0
             # print('Turning to 0: {}'.format(model.weights.grad))
 
             # get layer of shared weights
-            W = model.get_last_shared_layer()
+            W = train.get_last_shared_layer()
 
             # get the gradient norms for each of the tasks
             # G^{(i)}_w(t)
@@ -1005,7 +1005,7 @@ def regression_mode_2(multi_tasks):
                 # get the gradient of this task loss with respect to the shared parameters
                 gygw = torch.autograd.grad(task_loss[i], W.parameters(), retain_graph=True)
                 # compute the norm
-                norms.append(torch.norm(torch.mul(model.weights[i], gygw[0])))
+                norms.append(torch.norm(torch.mul(train.weights[i], gygw[0])))
             norms = torch.stack(norms)
             # print('G_w(t): {}'.format(norms))
 
@@ -1037,34 +1037,34 @@ def regression_mode_2(multi_tasks):
             # print('GradNorm loss {}'.format(grad_norm_loss))
 
             # compute the gradient for the weights
-            model.weights.grad = torch.autograd.grad(grad_norm_loss, model.weights)[0]
+            train.weights.grad = torch.autograd.grad(grad_norm_loss, train.weights)[0]
 
             # do a step with the optimizer
             optimizer.step()
 
         # renormalize
-        normalize_coeff = n_tasks / torch.sum(model.weights.data, dim=0)
-        model.weights.data = model.weights.data * normalize_coeff
+        normalize_coeff = n_tasks / torch.sum(train.weights.data, dim=0)
+        train.weights.data = train.weights.data * normalize_coeff
         # record
         if torch.cuda.is_available():
             task_losses.append(task_loss.data.cpu().numpy())
             loss_ratios.append(np.sum(task_losses[-1] / task_losses[0]))
-            weights.append(model.weights.data.cpu().numpy())
+            weights.append(train.weights.data.cpu().numpy())
             grad_norm_losses.append(grad_norm_loss.data.cpu().numpy())
         else:
             task_losses.append(task_loss.data.numpy())
             loss_ratios.append(np.sum(task_losses[-1] / task_losses[0]))
-            weights.append(model.weights.data.numpy())
+            weights.append(train.weights.data.numpy())
             grad_norm_losses.append(grad_norm_loss.data.numpy())
 
         if t % 100 == 0:
             if torch.cuda.is_available():
                 print('{}/{}: loss_ratio={}, weights={}, task_loss={}, grad_norm_loss={}'.format(
-                    t, num_epochs, loss_ratios[-1], model.weights.data.cpu().numpy(), task_loss.data.cpu().numpy(),
+                    t, num_epochs, loss_ratios[-1], train.weights.data.cpu().numpy(), task_loss.data.cpu().numpy(),
                     grad_norm_loss.data.cpu().numpy()))
             else:
                 print('{}/{}: loss_ratio={}, weights={}, task_loss={}, grad_norm_loss={}'.format(
-                    t, num_epochs, loss_ratios[-1], model.weights.data.numpy(), task_loss.data.numpy(),
+                    t, num_epochs, loss_ratios[-1], train.weights.data.numpy(), task_loss.data.numpy(),
                     grad_norm_loss.data.numpy()))
     task_losses = np.array(task_losses)
     weights = np.array(weights)
@@ -1091,7 +1091,7 @@ def regression_mode_2(multi_tasks):
     ax5.plot(weights[:, 0])
     ax5.plot(weights[:, 1])
     plt.show()
-    torch.save(train, 'classification_grad_loss_model/classification_{}.pt'.format(classfication_model_name))
+    torch.save(model, 'classification_grad_loss_model/classification_{}.pt'.format(classfication_model_name))
 
 def regression_mode(multi_tasks):
 
@@ -1193,24 +1193,25 @@ if __name__ == "__main__":
     datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
 
 
-    # # 回归
-    # regression_model_name = "mtl3-14"
-    # # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
+    # 回归
+    regression_model_name = "mtl3-14"
     # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
-    # # 普通多任务
-    # # regression_mode(multi_tasks)
-    # # gradnorm loss
-    # regression_mode_2(multi_tasks)
-    # # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
+    multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
+    # 普通多任务
+    regression_mode(multi_tasks)
+
+    # gradnorm loss
+    regression_mode_grad_norm_loss(multi_tasks)
     # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
-    # regression_test(test_datasets_name)
+    test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
+    regression_test(test_datasets_name)
 
     # 分类
     classfication_model_name = "mtl4-1"
     # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
     multi_tasks = ["clintox.csv","bbbp.csv"]
     # classification_mode(multi_tasks)
-    regression_mode_2(multi_tasks)
+    regression_mode_grad_norm_loss(multi_tasks)
     # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
     test_datasets_name = ["clintox.csv", "bbbp.csv"]
     classification_test(test_datasets_name)
