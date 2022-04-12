@@ -3,9 +3,10 @@
 import torch
 import torch.nn as nn
 
-class AutomaticWeightedLoss(nn.Module):
-    """automatically weighted multi-task loss
 
+class UncertaintyWeightLoss(nn.Module):
+    """
+    balance loss method, uncertainty weighting
     Params：
         num: int，the number of loss
         x: multi-task loss
@@ -15,8 +16,9 @@ class AutomaticWeightedLoss(nn.Module):
         awl = AutomaticWeightedLoss(2)
         loss_sum = awl(loss1, loss2)
     """
+
     def __init__(self, num=2):
-        super(AutomaticWeightedLoss, self).__init__()
+        super(UncertaintyWeightLoss, self).__init__()
         params = torch.ones(num, requires_grad=True)
         self.params = torch.nn.Parameter(params)
 
@@ -26,6 +28,7 @@ class AutomaticWeightedLoss(nn.Module):
             loss_sum += 0.5 / (self.params[i] ** 2) * loss + torch.log(1 + self.params[i] ** 2)
         return loss_sum
 
+
 if __name__ == '__main__':
-    awl = AutomaticWeightedLoss(7)
+    awl = UncertaintyWeightLoss(7)
     print(awl.parameters())

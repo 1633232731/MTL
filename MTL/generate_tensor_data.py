@@ -4,7 +4,7 @@ import numpy
 import pandas as pd
 from sklearn.utils import shuffle as reset
 import torch
-from utils import split
+from pretrain_utils import split
 from pretrain_trfm import TrfmSeq2seq
 from build_vocab import WordVocab
 

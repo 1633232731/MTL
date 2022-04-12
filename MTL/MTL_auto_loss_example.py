@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, ConcatDataset
 from pretrain_trfm import TrfmSeq2seq
 from build_vocab import WordVocab
 from dataset import MyData
-from utils import split
+from pretrain_utils import split
 
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
@@ -24,7 +24,7 @@ from sklearn.metrics import mean_squared_error
 import math
 import torch
 from torch.utils.data.sampler import RandomSampler
-from AutomaticWeightedLoss import AutomaticWeightedLoss
+from uncertainty_weight_loss import UncertaintyWeightLoss
 
 pad_index = 0
 unk_index = 1
@@ -489,7 +489,7 @@ def train_regression_with_auto_loss(mtl_regression, datasets_name, dataloaders):
     # loss和优化器
     criterion = nn.MSELoss()
     # optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=0.001)
-    awl = AutomaticWeightedLoss(len(datasets_name))
+    awl = UncertaintyWeightLoss(len(datasets_name))
     optimizer = torch.optim.Adam([
         {'params': mtl_regression.parameters()},
         {'params': awl.parameters(), 'weight_decay': 0}
@@ -683,7 +683,7 @@ def train_classificition_with_auto_loss(mtl_classification, datasets_name, datal
     # loss和优化器
     criterion = nn.CrossEntropyLoss().to(device)
     # optimizer = torch.optim.Adam(mtl_classification.parameters(), lr=learning_rate)
-    awl = AutomaticWeightedLoss(2)
+    awl = UncertaintyWeightLoss(2)
     optimizer = torch.optim.Adam([
         {'params': mtl_classification.parameters()},
         {'params': awl.parameters(), 'weight_decay': 0},

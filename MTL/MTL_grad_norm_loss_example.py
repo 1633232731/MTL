@@ -1,7 +1,6 @@
 import random
 import time
 
-
 from typing import List
 
 import numpy
@@ -16,7 +15,7 @@ from torch.utils.data import DataLoader, ConcatDataset
 from pretrain_trfm import TrfmSeq2seq
 from build_vocab import WordVocab
 from dataset import MyData
-from utils import split
+from pretrain_utils import split
 
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
@@ -26,43 +25,15 @@ from sklearn.metrics import mean_squared_error
 import math
 import torch
 from torch.utils.data.sampler import RandomSampler
-from AutomaticWeightedLoss import AutomaticWeightedLoss
+from uncertainty_weight_loss import UncertaintyWeightLoss
 
-from model import RegressionGradNormLossModel, RegressionGradNormLossTrain
+from model import GradNormLossModel, GradNormLossTrain
 
 pad_index = 0
 unk_index = 1
 eos_index = 2
 sos_index = 3
 mask_index = 4
-
-
-def random_mini_batches(XE, R1E, R2E, mini_batch_size=10, seed=42):
-    # Creating the mini-batches
-    np.random.seed(seed)
-    m = XE.shape[0]
-    mini_batches = []
-    permutation = list(np.random.permutation(m))
-    shuffled_XE = XE[permutation, :]
-    shuffled_X1R = R1E[permutation]
-    shuffled_X2R = R2E[permutation]
-    num_complete_minibatches = math.floor(m / mini_batch_size)
-    for k in range(0, int(num_complete_minibatches)):
-        mini_batch_XE = shuffled_XE[k * mini_batch_size: (k + 1) * mini_batch_size, :]
-        mini_batch_X1R = shuffled_X1R[k * mini_batch_size: (k + 1) * mini_batch_size]
-        mini_batch_X2R = shuffled_X2R[k * mini_batch_size: (k + 1) * mini_batch_size]
-        mini_batch = (mini_batch_XE, mini_batch_X1R, mini_batch_X2R)
-        mini_batches.append(mini_batch)
-    Lower = int(num_complete_minibatches * mini_batch_size)
-    Upper = int(m - (mini_batch_size * math.floor(m / mini_batch_size)))
-    if m % mini_batch_size != 0:
-        mini_batch_XE = shuffled_XE[Lower: Lower + Upper, :]
-        mini_batch_X1R = shuffled_X1R[Lower: Lower + Upper]
-        mini_batch_X2R = shuffled_X2R[Lower: Lower + Upper]
-        mini_batch = (mini_batch_XE, mini_batch_X1R, mini_batch_X2R)
-        mini_batches.append(mini_batch)
-
-    return mini_batches
 
 
 def get_all_dataset() -> List[str]:
@@ -331,8 +302,10 @@ class MTL_classification(nn.Module):
         # out.append(out7)
 
         return out
+
     def get_last_shared_layer(self):
         return self.last
+
 
 def load_vocal():
     return WordVocab.load_vocab('vocab/vocab.pkl')
@@ -414,10 +387,7 @@ def load_train_set_test_set(dataset_name):
     return dataloader, testloader
 
 
-
-
-
-def train_regression(mtl_regression,datasets_name,dataloaders):
+def train_regression(mtl_regression, datasets_name, dataloaders):
     """
     对所有数据集进行训练
     :param datasets_name:
@@ -426,10 +396,10 @@ def train_regression(mtl_regression,datasets_name,dataloaders):
     print("Start Training {}".format(datasets_name))
     # loss和优化器
     criterion = nn.MSELoss()
-    optimizer = torch.optim.SGD(mtl_regression.parameters(),lr = learning_rate)
+    optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=learning_rate)
     # 开始迭代
     loss_list = []
-    for epoch in tqdm(range(num_epochs),colour="#29b7cb"):
+    for epoch in tqdm(range(num_epochs), colour="#29b7cb"):
         train_loss = 0
         index_batch_list = mix_dataload_into_batches(dataloaders)
         for order_dict in index_batch_list:
@@ -464,13 +434,12 @@ def train_regression(mtl_regression,datasets_name,dataloaders):
             # not_match_label = average
             not_match_label = torch.zeros_like(label)
 
-
             for i in range(2):
                 if i != index:
-                    loss_temp.append(criterion(out_list[i],not_match_label.to(torch.float32)))
+                    loss_temp.append(criterion(out_list[i], not_match_label.to(torch.float32)))
                 else:
                     loss_temp.append(criterion(out_list[index], label))
-            loss = (loss_temp[0] * 4  + loss_temp[1])/2
+            loss = (loss_temp[0] * 4 + loss_temp[1]) / 2
 
             optimizer.zero_grad()  # 每次迭代梯度初始化0
             loss.backward()  # 反向传播，计算梯度
@@ -479,11 +448,12 @@ def train_regression(mtl_regression,datasets_name,dataloaders):
         # if train_loss < 0.001:
         #     break
         if epoch % 100 == 0:
-            print("Epoch {} / {} loss {}".format(epoch,num_epochs,train_loss))
+            print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
             loss_list.append(train_loss)
     return loss_list
 
-def train_regression_with_auto_loss(mtl_regression,datasets_name,dataloaders):
+
+def train_regression_with_auto_loss(mtl_regression, datasets_name, dataloaders):
     """
     对所有数据集进行训练
     :param datasets_name:
@@ -493,14 +463,14 @@ def train_regression_with_auto_loss(mtl_regression,datasets_name,dataloaders):
     # loss和优化器
     criterion = nn.MSELoss()
     # optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=0.001)
-    awl = AutomaticWeightedLoss(2)
+    awl = UncertaintyWeightLoss(2)
     optimizer = torch.optim.Adam([
         {'params': mtl_regression.parameters()},
         {'params': awl.parameters(), 'weight_decay': 0}
-    ],lr = learning_rate)
+    ], lr=learning_rate)
     # 开始迭代
     loss_list = []
-    for epoch in tqdm(range(num_epochs),colour="#29b7cb"):
+    for epoch in tqdm(range(num_epochs), colour="#29b7cb"):
         train_loss = 0
         index_batch_list = mix_dataload_into_batches(dataloaders)
         for order_dict in index_batch_list:
@@ -524,7 +494,7 @@ def train_regression_with_auto_loss(mtl_regression,datasets_name,dataloaders):
             loss_temp = []
             for i in range(2):
                 if i != index:
-                    loss_temp.append(criterion(out_list[i],torch.zeros_like(label).to(torch.float32)))
+                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.float32)))
                 else:
                     loss_temp.append(criterion(out_list[index], label))
             loss = awl(loss_temp[0], loss_temp[1])
@@ -536,12 +506,12 @@ def train_regression_with_auto_loss(mtl_regression,datasets_name,dataloaders):
         # if train_loss < 0.001:
         #     break
         if epoch % 100 == 0:
-            print("Epoch {} / {} loss {}".format(epoch,num_epochs,train_loss))
+            print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
             loss_list.append(train_loss)
     return loss_list
 
-def judge_empty(dataloads):
 
+def judge_empty(dataloads):
     """
     判断嵌套列表是否全空
     exp:
@@ -554,6 +524,7 @@ def judge_empty(dataloads):
         if len(dataload) != 0:
             return False
     return True
+
 
 def mix_dataload_into_batches(dataloaders):
     '''
@@ -570,14 +541,15 @@ def mix_dataload_into_batches(dataloaders):
         t = list(dataloader)
         new_dataloads.append(t)
     while not judge_empty(new_dataloads):
-        for index,dataloader in enumerate(new_dataloads):
+        for index, dataloader in enumerate(new_dataloads):
             if len(dataloader) != 0:
-                index_batch_list.append({index:dataloader.pop()})
+                index_batch_list.append({index: dataloader.pop()})
     # random.shuffle(index_batch_list)
     return index_batch_list
 
+
 # 所有数据集一起训练.每次迭代一个batch一个数据集
-def train_classificition(mtl_classification,datasets_name, dataloaders):
+def train_classificition(mtl_classification, datasets_name, dataloaders):
     """
     所有数据集一起训练.每次迭代一个batch一个数据集
     :param dataset_name:
@@ -591,7 +563,7 @@ def train_classificition(mtl_classification,datasets_name, dataloaders):
 
     # 开始迭代
     loss_list = []
-    for epoch in tqdm(range(num_epochs),colour="#41ae3c"):
+    for epoch in tqdm(range(num_epochs), colour="#41ae3c"):
         # 每一次迭代都对所有数据集训练
         train_loss = 0
 
@@ -611,7 +583,7 @@ def train_classificition(mtl_classification,datasets_name, dataloaders):
             loss_temp = []
             for i in range(2):
                 if i != index:
-                    loss_temp.append(criterion(out_list[i],torch.zeros_like(label).to(torch.int64)))
+                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.int64)))
                 else:
                     loss_temp.append(criterion(out_list[index], label))
             loss = (loss_temp[0] * 17 + loss_temp[1]) / 2
@@ -665,7 +637,8 @@ def train_classificition(mtl_classification,datasets_name, dataloaders):
 
     return loss_list
 
-def train_classificition_with_auto_loss(mtl_classification,datasets_name, dataloaders):
+
+def train_classificition_with_auto_loss(mtl_classification, datasets_name, dataloaders):
     """
     所有数据集一起训练.每次迭代一个batch一个数据集
     :param dataset_name:
@@ -676,14 +649,14 @@ def train_classificition_with_auto_loss(mtl_classification,datasets_name, datalo
     # loss和优化器
     criterion = nn.CrossEntropyLoss().to(device)
     # optimizer = torch.optim.Adam(mtl_classification.parameters(), lr=learning_rate)
-    awl = AutomaticWeightedLoss(2)
+    awl = UncertaintyWeightLoss(2)
     optimizer = torch.optim.Adam([
         {'params': mtl_classification.parameters()},
         {'params': awl.parameters(), 'weight_decay': 0},
-    ],lr = learning_rate)
+    ], lr=learning_rate)
     # 开始迭代
     loss_list = []
-    for epoch in tqdm(range(num_epochs),colour="#41ae3c"):
+    for epoch in tqdm(range(num_epochs), colour="#41ae3c"):
         # 每一次迭代都对所有数据集训练
         train_loss = 0
 
@@ -703,7 +676,7 @@ def train_classificition_with_auto_loss(mtl_classification,datasets_name, datalo
             loss_temp = []
             for i in range(2):
                 if i != index:
-                    loss_temp.append(criterion(out_list[i],torch.zeros_like(label).to(torch.int64)))
+                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.int64)))
                 else:
                     loss_temp.append(criterion(out_list[index], label))
             loss = awl(loss_temp[0], loss_temp[1])
@@ -757,128 +730,9 @@ def train_classificition_with_auto_loss(mtl_classification,datasets_name, datalo
 
     return loss_list
 
-def train_classificition_with_grad_norm_loss(mtl_classification,datasets_name, dataloaders):
-    """
-       所有数据集一起训练.每次迭代一个batch一个数据集
-       使用grad norm均衡loss
-       :param dataset_name:
-       :return: 这个数据集的测试集
-       """
-    print("Start Training {} ".format(datasets_name))
 
-    # loss和优化器
-    criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.Adam(mtl_classification.parameters(), lr=learning_rate)
-    weights = []
-    task_losses = []
-    loss_ratios = []
-    grad_norm_losses = []
-    # 开始迭代
-    loss_list = []
-    for epoch in tqdm(range(num_epochs), colour="#41ae3c"):
-        # 每一次迭代都对所有数据集训练
-        train_loss = 0
-
-        # index_batch_list exp:[{0: 2}, {1: 4}, {2: 8}, {3: 11}, {4: 12}, {0: 1}, {1: 3}, {2: 7}, {3: 10}, {2: 6}, {3: 9}, {2: 5}]
-        # key 为index,value为batch
-
-        index_batch_list = mix_dataload_into_batches(dataloaders)
-
-        for order_dict in index_batch_list:
-
-            (data, label) = tuple(order_dict.values())[0]
-            index = tuple(order_dict.keys())[0]
-            # 对每一batch的数据训练
-
-            out_list = mtl_classification(data.to(device))
-            label = label.to(device)
-            label = label.to(torch.int64)
-
-
-
-            loss_temp = []
-            for i in range(2):
-                if i != index:
-                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.int64)))
-                else:
-                    loss_temp.append(criterion(out_list[index], label))
-            loss = (loss_temp[0] + loss_temp[1])
-            '''
-            epoch 5000 
-            bace 0.03
-            bbbp 0.05
-            clintox 0.01
-            HIV 0.17
-            muv 0.001
-            tox21 0.05
-            sider 0.18
-            '''
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            train_loss = loss.item()
-        if epoch % 2 == 0:
-            print('Epoch [{}/{}],loss: {:.8f}'.format(epoch, num_epochs, train_loss))
-            loss_list.append(train_loss)
-
-    return loss_list
-
-
-def train_regression_with_grad_norm_loss(mtl_regression,datasets_name,dataloaders):
-    """
-        对所有数据集进行训练
-        :param datasets_name:
-        :return: 所有数据集的loss
-        """
-    print("Start Training {}".format(datasets_name))
-    # loss和优化器
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=0.001)
-
-    # 开始迭代
-    loss_list = []
-    for epoch in tqdm(range(num_epochs), colour="#29b7cb"):
-        train_loss = 0
-        index_batch_list = mix_dataload_into_batches(dataloaders)
-        for order_dict in index_batch_list:
-            # 对训练数据的加载器进行迭代计算
-            (data, label) = tuple(order_dict.values())[0]
-            index = tuple(order_dict.keys())[0]
-            data = data.to(device)
-            label = label.to(device)
-            label = label.to(torch.float32)
-            out_list = mtl_regression(data)  # MLP在训练batch上的输出
-            '''
-            5000 epoch
-            esol 0.70
-            freesolv 1.19
-            lipo 4.51
-            '''
-            # if index == 2:
-            #     out_list[index] /= 5
-            # elif index == 1:
-            #     out_list[index] /= 1.2
-            loss_temp = []
-            for i in range(2):
-                if i != index:
-                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.float32)))
-                else:
-                    loss_temp.append(criterion(out_list[index], label))
-            loss = (loss_temp[0]+loss_temp[1])
-
-            optimizer.zero_grad()  # 每次迭代梯度初始化0
-            loss.backward()  # 反向传播，计算梯度
-            optimizer.step()  # 使用梯度进行优化
-            train_loss = loss.item()
-        # if train_loss < 0.001:
-        #     break
-        if epoch % 100 == 0:
-            print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
-            loss_list.append(train_loss)
-    return loss_list
-
-def get_regression_RMSE(testloader,model_name,index):
-    model = torch.load('regression_grad_loss_model/regression_{}.pt'.format(model_name))
+def get_regression_RMSE(testloader, model_name, index):
+    model = torch.load('{}/regression_{}.pt'.format(model_save_path, model_name))
     model.eval()
     with torch.no_grad():
         prob_all = []
@@ -896,8 +750,9 @@ def get_regression_RMSE(testloader,model_name,index):
 
     return RMSE
 
+
 def get_classification_accuracy(testloader, dataset_name, index):
-    model = torch.load('classification_grad_loss_model/classification_{}.pt'.format(dataset_name))
+    model = torch.load('{}/classification_{}.pt'.format(model_save_path, dataset_name))
     model.eval()
 
     with torch.no_grad():
@@ -915,7 +770,7 @@ def get_classification_accuracy(testloader, dataset_name, index):
 
 
 def get_classification_auc_roc(testloader, dataset_name, index):
-    model = torch.load('classification_grad_loss_model/classification_{}.pt'.format(dataset_name))
+    model = torch.load('{}/classification_{}.pt'.format(model_save_path, dataset_name))
     model.eval()
 
     with torch.no_grad():
@@ -924,7 +779,7 @@ def get_classification_auc_roc(testloader, dataset_name, index):
         for (data, label) in (testloader):
             prob = model(data.to(device))[index]  # 表示模型的预测输出
             prob_all.extend(
-                prob[:,1].cpu().numpy())  # prob[:,1]返回每一行第二列的数，根据该函数的参数可知，y_score表示的较大标签类的分数，因此就是最大索引对应的那个值，而不是最大索引值
+                prob[:, 1].cpu().numpy())  # prob[:,1]返回每一行第二列的数，根据该函数的参数可知，y_score表示的较大标签类的分数，因此就是最大索引对应的那个值，而不是最大索引值
             label_all.extend(label)
         auc = roc_auc_score(label_all, prob_all)
 
@@ -938,7 +793,14 @@ def get_tensor_data(dataset_name):
     print("加载 {} tensor 数据成功".format(file_name))
     return c[0], c[1], c[2], c[3]
 
-def regression_mode_grad_norm_loss(multi_tasks):
+
+def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes):
+    """
+
+    :param multi_tasks:
+    :param mode: 0 是回归,1是分类
+    :return:
+    """
     n_tasks = len(multi_tasks)
 
     datas = []
@@ -946,9 +808,9 @@ def regression_mode_grad_norm_loss(multi_tasks):
         data, test = load_train_set_test_set(multi_task)
         datas.append(data)
 
-    model = RegressionGradNormLossModel(n_tasks)
+    model = GradNormLossModel(n_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes)
 
-    train = RegressionGradNormLossTrain(model)
+    train = GradNormLossTrain(model, mode, n_tasks)
 
     if torch.cuda.is_available():
         train.cuda()
@@ -964,14 +826,14 @@ def regression_mode_grad_norm_loss(multi_tasks):
         index_batch_list = mix_dataload_into_batches(datas)
         for order_dict in index_batch_list:
             # 对训练数据的加载器进行迭代计算
-            (X, ts) = tuple(order_dict.values())[0]
+            (X, target) = tuple(order_dict.values())[0]
             index = tuple(order_dict.keys())[0]
-            ts = ts.to(torch.float32)
+            target = target.to(torch.float32)
             if torch.cuda.is_available():
                 X = X.cuda()
-                ts = ts.cuda()
+                target = target.cuda()
             # evaluate each task loss L_i(t)
-            task_loss = train(X, ts,index)  # this will do a forward pass in the model and will also evaluate the loss
+            task_loss = train(X, target, index)  # this will do a forward pass in the model and will also evaluate the loss
             # compute the weighted loss w_i(t) * L_i(t)
             weighted_task_loss = torch.mul(train.weights, task_loss)
             # initialize the initial loss L(0) if t=0
@@ -1093,8 +955,8 @@ def regression_mode_grad_norm_loss(multi_tasks):
     plt.show()
     torch.save(model, 'classification_grad_loss_model/classification_{}.pt'.format(classfication_model_name))
 
-def regression_mode(multi_tasks):
 
+def regression_mode(multi_tasks):
     # 回归多任务模式2
     mtl_regression = MTL_regression(input_size, hidden_size).to(device)
     mtl_regression.train()
@@ -1103,29 +965,30 @@ def regression_mode(multi_tasks):
         data, test = load_train_set_test_set(multi_task)
         datas.append(data)
     # loss_list = train_regression(mtl_regression,multi_tasks, datas)
-    # loss_list = train_regression_with_auto_loss(mtl_regression,multi_tasks, datas)
-    loss_list = train_regression_with_grad_norm_loss(mtl_regression,multi_tasks, datas)
+    loss_list = train_regression_with_auto_loss(mtl_regression, multi_tasks, datas)
     plt.plot(loss_list)
     plt.title("regression_{}".format(regression_model_name))
     plt.show()
     torch.save(mtl_regression, 'regression_auto_loss_model/regression_{}.pt'.format(regression_model_name))
 
-def regression_test(test_datasets_name):
+
+def regression_test(test_datasets_name, model_save_path):
     # 测试回归
-    with open("regression_grad_loss_model/result1.txt", "a+", encoding="utf-8") as f:
+    with open("{}/result1.txt".format(model_save_path), "a+", encoding="utf-8") as f:
         print(regression_model_name, file=f)
         print(regression_model_name)
 
         # mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
-        for index,test_dataset_name in enumerate(test_datasets_name):
+        for index, test_dataset_name in enumerate(test_datasets_name):
             file_name = test_dataset_name.split(".")[0]
             print("Start eval {}".format(file_name))
-            print("Start eval {}".format(file_name),file=f)
-            _,testloader = load_train_set_test_set(test_dataset_name)
-            RMSE = get_regression_RMSE(testloader, regression_model_name, index)
+            print("Start eval {}".format(file_name), file=f)
+            _, testloader = load_train_set_test_set(test_dataset_name)
+            RMSE = get_regression_RMSE(testloader, regression_model_name, index, model_save_path)
             print("{} ".format(RMSE))
-            print("{} ".format(RMSE),file=f)
+            print("{} ".format(RMSE), file=f)
         print(file=f)
+
 
 def classification_mode(multi_tasks):
     # 分类多任务模式2
@@ -1138,16 +1001,16 @@ def classification_mode(multi_tasks):
         data, test = load_train_set_test_set(multi_task)
         datas.append(data)
     # loss_list = train_classificition(mtl_classification,multi_tasks, datas)
-    # loss_list = train_classificition_with_auto_loss(mtl_classification,multi_tasks, datas)
-    loss_list = train_classificition_with_grad_norm_loss(mtl_classification,multi_tasks, datas)
+    loss_list = train_classificition_with_auto_loss(mtl_classification, multi_tasks, datas)
     plt.plot(loss_list)
     plt.title("classification_{}".format(classfication_model_name))
     plt.show()
-    torch.save(mtl_classification, 'classification_auto_loss_model/classification_{}.pt'.format(classfication_model_name))
+    torch.save(mtl_classification,
+               'classification_auto_loss_model/classification_{}.pt'.format(classfication_model_name))
 
 
-def classification_test(test_datasets_name):
-    with open("classification_grad_loss_model/result_new.txt", "a+", encoding="utf-8") as f:
+def classification_test(test_datasets_name, model_save_path):
+    with open("{}/result_new.txt".format(model_save_path), "a+", encoding="utf-8") as f:
         print(classfication_model_name, file=f)
         print(classfication_model_name)
         # 测试分类
@@ -1166,11 +1029,8 @@ def classification_test(test_datasets_name):
             print("AUC:{:.4f}".format(auc_roc), file=f)
         print(file=f)
 
-if __name__ == "__main__":
-    test = {}
-    testloader_list = []
-    model_result = {}
 
+if __name__ == "__main__":
     input_size = 1024
     hidden_size = 500
     num_classes = 2
@@ -1187,41 +1047,38 @@ if __name__ == "__main__":
     vocab = load_vocal()
     trfm = load_transformer(vocab)
 
-    t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
-         "freesolv.csv", "lipo.csv"]
+    # t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
+    #      "freesolv.csv", "lipo.csv"]
     datasets_name = get_all_dataset()
     datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
 
-
     # 回归
+    model_save_path = "regression_grad_loss_model"
     regression_model_name = "mtl3-14"
     # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
-    multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
+    multi_tasks = ["freesolv.csv", "lipo.csv", "esol.csv"]
     # 普通多任务
     regression_mode(multi_tasks)
-
     # gradnorm loss
-    regression_mode_grad_norm_loss(multi_tasks)
+    mode = 0
+    grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes)
     # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
-    test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
-    regression_test(test_datasets_name)
+    test_datasets_name = ["freesolv.csv", "lipo.csv", "esol.csv"]
+    regression_test(test_datasets_name, model_save_path)
 
     # 分类
+    model_save_path = "classification_grad_loss_model"
     classfication_model_name = "mtl4-1"
     # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-    multi_tasks = ["clintox.csv","bbbp.csv"]
-    # classification_mode(multi_tasks)
-    regression_mode_grad_norm_loss(multi_tasks)
+    multi_tasks = ["clintox.csv", "bbbp.csv"]
+    # 普通多任务
+    classification_mode(multi_tasks)
+    # gradnorm loss
+    mode = 1
+    grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes)
     # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
     test_datasets_name = ["clintox.csv", "bbbp.csv"]
-    classification_test(test_datasets_name)
-
-
-
-
-
-
-
+    classification_test(test_datasets_name, model_save_path)
 
 '''
 分类:

@@ -2,7 +2,7 @@ from torch.utils.data import Dataset
 from typing import List
 import pandas as pd
 import numpy as np
-from utils import split
+from pretrain_utils import split
 import torch
 from pretrain_trfm import TrfmSeq2seq
 from build_vocab import WordVocab

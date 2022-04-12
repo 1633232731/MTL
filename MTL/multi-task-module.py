@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from pretrain_trfm import TrfmSeq2seq
 from build_vocab import WordVocab
 from dataset import MyData
-from utils import split
+from pretrain_utils import split
 from sklearn.metrics import mean_squared_error, precision_recall_curve, precision_score
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import auc

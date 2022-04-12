@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from build_vocab import WordVocab
-from dataset1 import Seq2seqDataset
+from pretrain_dataset import Seq2seqDataset
 
 PAD = 0
 UNK = 1
