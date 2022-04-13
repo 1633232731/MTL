@@ -1,3 +1,4 @@
+import os
 import random
 import time
 
@@ -330,7 +331,7 @@ def train_test_split(data, test_size=0.2, shuffle=True, random_state=None):
 
 
 def prepare_data(dataset_name):
-    seed = 30
+
     dataset_detail = get_dataset_detail()[dataset_name]
     df = pd.read_csv('dataset/{}'.format(dataset_name))
     if dataset_name == "bace.csv":
@@ -387,131 +388,135 @@ def load_train_set_test_set(dataset_name):
     return dataloader, testloader
 
 
-def train_regression(mtl_regression, datasets_name, dataloaders):
-    """
-    对所有数据集进行训练
-    :param datasets_name:
-    :return: 所有数据集的loss
-    """
-    print("Start Training {}".format(datasets_name))
-    # loss和优化器
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=learning_rate)
-    # 开始迭代
-    loss_list = []
-    for epoch in tqdm(range(num_epochs), colour="#29b7cb"):
-        train_loss = 0
-        index_batch_list = mix_dataload_into_batches(dataloaders)
-        for order_dict in index_batch_list:
-            # 对训练数据的加载器进行迭代计算
-            (data, label) = tuple(order_dict.values())[0]
-            index = tuple(order_dict.keys())[0]
-            data = data.to(device)
-            label = label.to(device)
-            label = label.to(torch.float32)
-            out_list = mtl_regression(data)  # MLP在训练batch上的输出
-            '''
-            5000 epoch
-            esol 0.70
-            freesolv 1.19
-            lipo 4.51
-            '''
-            # if index == 2:
-            #     out_list[index] /= 5
-            # elif index == 1:
-            #     out_list[index] /= 1.2
-            # loss = criterion(out_list[index], label)  # 均方根损失函数
-            loss_temp = []
+# def train_regression(mtl_regression, datasets_name, dataloaders,loss_type):
+#     """
+#     对所有数据集进行训练
+#     :param mtl_regression: 模型
+#     :param datasets_name: 任务名字列表
+#     :param dataloaders:
+#     :param loss_type: 损失函数的种类,0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight
+#     :return: 所有数据集的loss
+#     """
+#     print("Start Training {}".format(datasets_name))
+#     # loss和优化器
+#     criterion = nn.MSELoss()
+#     optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=learning_rate)
+#     # 开始迭代
+#     loss_list = []
+#     for epoch in tqdm(range(num_epochs), colour="#29b7cb"):
+#         train_loss = 0
+#         index_batch_list = mix_dataload_into_batches(dataloaders)
+#         for order_dict in index_batch_list:
+#             # 对训练数据的加载器进行迭代计算
+#             (data, label) = tuple(order_dict.values())[0]
+#             index = tuple(order_dict.keys())[0]
+#             data = data.to(device)
+#             label = label.to(device)
+#             label = label.to(torch.float32)
+#             out_list = mtl_regression(data)  # MLP在训练batch上的输出
+#
+#             '''
+#             5000 epoch
+#             esol 0.70
+#             freesolv 1.19
+#             lipo 4.51
+#             '''
+#             # if index == 2:
+#             #     out_list[index] /= 5
+#             # elif index == 1:
+#             #     out_list[index] /= 1.2
+#             # loss = criterion(out_list[index], label)  # 均方根损失函数
+#             loss_temp = []
+#
+#             # # 将不对应batch的label由0改为label的均值
+#             # label_average = sum(label) / len(label)
+#             # t = []
+#             # for i in range(len(label)):
+#             #     t.append(label_average.item())
+#             # a = np.array(t)
+#             # average = torch.from_numpy(a).to(device)
+#             #
+#             # not_match_label = average
+#
+#             not_match_label = torch.zeros_like(label)
+#             for i in range(2):
+#                 if i != index:
+#                     loss_temp.append(criterion(out_list[i], not_match_label.to(torch.float32)))
+#                 else:
+#                     loss_temp.append(criterion(out_list[index], label))
+#             loss = (loss_temp[0] * 4 + loss_temp[1]) / 2
+#
+#             optimizer.zero_grad()  # 每次迭代梯度初始化0
+#             loss.backward()  # 反向传播，计算梯度
+#             optimizer.step()  # 使用梯度进行优化
+#             train_loss = loss.item()
+#         # if train_loss < 0.001:
+#         #     break
+#         if epoch % 100 == 0:
+#             print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
+#             loss_list.append(train_loss)
+#     return loss_list
+#
+#
+# def train_regression_with_auto_loss(mtl_regression, datasets_name, dataloaders):
+#     """
+#     对所有数据集进行训练
+#     :param datasets_name:
+#     :return: 所有数据集的loss
+#     """
+#     print("Start Training {}".format(datasets_name))
+#     # loss和优化器
+#     criterion = nn.MSELoss()
+#     # optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=0.001)
+#     awl = UncertaintyWeightLoss(2)
+#     optimizer = torch.optim.Adam([
+#         {'params': mtl_regression.parameters()},
+#         {'params': awl.parameters(), 'weight_decay': 0}
+#     ], lr=learning_rate)
+#     # 开始迭代
+#     loss_list = []
+#     for epoch in tqdm(range(num_epochs), colour="#29b7cb"):
+#         train_loss = 0
+#         index_batch_list = mix_dataload_into_batches(dataloaders)
+#         for order_dict in index_batch_list:
+#             # 对训练数据的加载器进行迭代计算
+#             (data, label) = tuple(order_dict.values())[0]
+#             index = tuple(order_dict.keys())[0]
+#             data = data.to(device)
+#             label = label.to(device)
+#             label = label.to(torch.float32)
+#             out_list = mtl_regression(data)  # MLP在训练batch上的输出
+#             '''
+#             5000 epoch
+#             esol 0.70
+#             freesolv 1.19
+#             lipo 4.51
+#             '''
+#             # if index == 2:
+#             #     out_list[index] /= 5
+#             # elif index == 1:
+#             #     out_list[index] /= 1.2
+#             loss_temp = []
+#             for i in range(2):
+#                 if i != index:
+#                     loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.float32)))
+#                 else:
+#                     loss_temp.append(criterion(out_list[index], label))
+#             loss = awl(loss_temp[0], loss_temp[1])
+#
+#             optimizer.zero_grad()  # 每次迭代梯度初始化0
+#             loss.backward()  # 反向传播，计算梯度
+#             optimizer.step()  # 使用梯度进行优化
+#             train_loss = loss.item()
+#         # if train_loss < 0.001:
+#         #     break
+#         if epoch % 100 == 0:
+#             print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
+#             loss_list.append(train_loss)
+#     return loss_list
 
-            # # 将不对应batch的label由0改为label的均值
-            # label_average = sum(label) / len(label)
-            # t = []
-            # for i in range(len(label)):
-            #     t.append(label_average.item())
-            # a = np.array(t)
-            # average = torch.from_numpy(a).to(device)
-            #
-            # not_match_label = average
-            not_match_label = torch.zeros_like(label)
 
-            for i in range(2):
-                if i != index:
-                    loss_temp.append(criterion(out_list[i], not_match_label.to(torch.float32)))
-                else:
-                    loss_temp.append(criterion(out_list[index], label))
-            loss = (loss_temp[0] * 4 + loss_temp[1]) / 2
-
-            optimizer.zero_grad()  # 每次迭代梯度初始化0
-            loss.backward()  # 反向传播，计算梯度
-            optimizer.step()  # 使用梯度进行优化
-            train_loss = loss.item()
-        # if train_loss < 0.001:
-        #     break
-        if epoch % 100 == 0:
-            print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
-            loss_list.append(train_loss)
-    return loss_list
-
-
-def train_regression_with_auto_loss(mtl_regression, datasets_name, dataloaders):
-    """
-    对所有数据集进行训练
-    :param datasets_name:
-    :return: 所有数据集的loss
-    """
-    print("Start Training {}".format(datasets_name))
-    # loss和优化器
-    criterion = nn.MSELoss()
-    # optimizer = torch.optim.SGD(mtl_regression.parameters(), lr=0.001)
-    awl = UncertaintyWeightLoss(2)
-    optimizer = torch.optim.Adam([
-        {'params': mtl_regression.parameters()},
-        {'params': awl.parameters(), 'weight_decay': 0}
-    ], lr=learning_rate)
-    # 开始迭代
-    loss_list = []
-    for epoch in tqdm(range(num_epochs), colour="#29b7cb"):
-        train_loss = 0
-        index_batch_list = mix_dataload_into_batches(dataloaders)
-        for order_dict in index_batch_list:
-            # 对训练数据的加载器进行迭代计算
-            (data, label) = tuple(order_dict.values())[0]
-            index = tuple(order_dict.keys())[0]
-            data = data.to(device)
-            label = label.to(device)
-            label = label.to(torch.float32)
-            out_list = mtl_regression(data)  # MLP在训练batch上的输出
-            '''
-            5000 epoch
-            esol 0.70
-            freesolv 1.19
-            lipo 4.51
-            '''
-            # if index == 2:
-            #     out_list[index] /= 5
-            # elif index == 1:
-            #     out_list[index] /= 1.2
-            loss_temp = []
-            for i in range(2):
-                if i != index:
-                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.float32)))
-                else:
-                    loss_temp.append(criterion(out_list[index], label))
-            loss = awl(loss_temp[0], loss_temp[1])
-
-            optimizer.zero_grad()  # 每次迭代梯度初始化0
-            loss.backward()  # 反向传播，计算梯度
-            optimizer.step()  # 使用梯度进行优化
-            train_loss = loss.item()
-        # if train_loss < 0.001:
-        #     break
-        if epoch % 100 == 0:
-            print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
-            loss_list.append(train_loss)
-    return loss_list
-
-
-def judge_empty(dataloads):
+def judge_empty(dataloaders):
     """
     判断嵌套列表是否全空
     exp:
@@ -520,8 +525,8 @@ def judge_empty(dataloads):
     :param dataloads:
     :return:
     """
-    for dataload in dataloads:
-        if len(dataload) != 0:
+    for dataloader in dataloaders:
+        if len(dataloader) != 0:
             return False
     return True
 
@@ -529,7 +534,6 @@ def judge_empty(dataloads):
 def mix_dataload_into_batches(dataloaders):
     '''
     将所有dataloads的数据按batch从第一个数据集开始依次排列
-
     :param dataloaders:
     :return: 返回batch字典,key为原数据集的index,value为batch
     '''
@@ -549,59 +553,253 @@ def mix_dataload_into_batches(dataloaders):
 
 
 # 所有数据集一起训练.每次迭代一个batch一个数据集
-def train_classificition(mtl_classification, datasets_name, dataloaders):
-    """
-    所有数据集一起训练.每次迭代一个batch一个数据集
-    :param dataset_name:
-    :return: 这个数据集的测试集
-    """
-    print("Start Training {} ".format(datasets_name))
+# def train_classificition(mtl_classification, datasets_name, dataloaders):
+#     """
+#     所有数据集一起训练.每次迭代一个batch一个数据集
+#     :param dataset_name:
+#     :return: 这个数据集的测试集
+#     """
+#     print("Start Training {} ".format(datasets_name))
+#
+#     # loss和优化器
+#     criterion = nn.CrossEntropyLoss().to(device)
+#     optimizer = torch.optim.Adam(mtl_classification.parameters(), lr=learning_rate)
+#
+#     # 开始迭代
+#     loss_list = []
+#     for epoch in tqdm(range(num_epochs), colour="#41ae3c"):
+#         # 每一次迭代都对所有数据集训练
+#         train_loss = 0
+#
+#         # index_batch_list exp:[{0: 2}, {1: 4}, {2: 8}, {3: 11}, {4: 12}, {0: 1}, {1: 3}, {2: 7}, {3: 10}, {2: 6}, {3: 9}, {2: 5}]
+#         # key 为index,value为batch
+#         index_batch_list = mix_dataload_into_batches(dataloaders)
+#         for order_dict in index_batch_list:
+#
+#             (data, label) = tuple(order_dict.values())[0]
+#             index = tuple(order_dict.keys())[0]
+#             # 对每一batch的数据训练
+#
+#             out_list = mtl_classification(data.to(device))
+#             label = label.to(device)
+#             label = label.to(torch.int64)
+#
+#             loss_temp = []
+#             for i in range(2):
+#                 if i != index:
+#                     loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.int64)))
+#                 else:
+#                     loss_temp.append(criterion(out_list[index], label))
+#             loss = (loss_temp[0] * 17 + loss_temp[1]) / 2
+#             # if index == 0:
+#             #     loss *= 6
+#             # elif index == 1:
+#             #     loss *= 4
+#             # elif index == 2:
+#             #     loss *= 20
+#             # elif index == 3:
+#             #     loss *= 1
+#             # elif index == 4:
+#             #     loss *= 200
+#             # elif index == 5:
+#             #     loss *= 4
+#             # elif index == 6:
+#             #     loss *= 1
+#             '''
+#             epoch 5000
+#             bace 0.03
+#             bbbp 0.05
+#             clintox 0.01
+#             HIV 0.17
+#             muv 0.001
+#             tox21 0.05
+#             sider 0.18
+#             '''
+#
+#             # if index == 0:
+#             #     l = criterion(out_list[i + 1], label)
+#             #     # loss2 = criterion(output2, label_false)
+#             #     # loss3 = criterion(output3, label_false)
+#             # elif index == 1:
+#             #     # loss1 = criterion(output1, label_false)
+#             #     l = criterion(output2, label)
+#             #     # loss3 = criterion(output3, label_false)
+#             # else:
+#             #     # loss1 = criterion(output1, label_false)
+#             #     # loss2 = criterion(output2, label_false)
+#             #     l = criterion(output3, label)
+#             # loss = (loss1 + loss2 + loss3 * 2) / 4
+#             optimizer.zero_grad()
+#             loss.backward()
+#             optimizer.step()
+#             train_loss = loss.item()
+#         # if train_loss < 0.00002 :
+#         #     break
+#         if epoch % 2 == 0:
+#             print('Epoch [{}/{}],loss: {:.8f}'.format(epoch, num_epochs, train_loss))
+#             loss_list.append(train_loss)
+#
+#     return loss_list
 
+
+# def train_classificition_with_auto_loss(mtl_classification, datasets_name, dataloaders):
+#     """
+#     所有数据集一起训练.每次迭代一个batch一个数据集
+#     :param dataset_name:
+#     :return: 这个数据集的测试集
+#     """
+#     print("Start Training {} ".format(datasets_name))
+#
+#     # loss和优化器
+#     criterion = nn.CrossEntropyLoss().to(device)
+#     # optimizer = torch.optim.Adam(mtl_classification.parameters(), lr=learning_rate)
+#     awl = UncertaintyWeightLoss(2)
+#     optimizer = torch.optim.Adam([
+#         {'params': mtl_classification.parameters()},
+#         {'params': awl.parameters(), 'weight_decay': 0},
+#     ], lr=learning_rate)
+#     # 开始迭代
+#     loss_list = []
+#     for epoch in tqdm(range(num_epochs), colour="#41ae3c"):
+#         # 每一次迭代都对所有数据集训练
+#         train_loss = 0
+#
+#         # index_batch_list exp:[{0: 2}, {1: 4}, {2: 8}, {3: 11}, {4: 12}, {0: 1}, {1: 3}, {2: 7}, {3: 10}, {2: 6}, {3: 9}, {2: 5}]
+#         # key 为index,value为batch
+#         index_batch_list = mix_dataload_into_batches(dataloaders)
+#         for order_dict in index_batch_list:
+#
+#             (data, label) = tuple(order_dict.values())[0]
+#             index = tuple(order_dict.keys())[0]
+#             # 对每一batch的数据训练
+#
+#             out_list = mtl_classification(data.to(device))
+#             label = label.to(device)
+#             label = label.to(torch.int64)
+#
+#             loss_temp = []
+#             for i in range(2):
+#                 if i != index:
+#                     loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.int64)))
+#                 else:
+#                     loss_temp.append(criterion(out_list[index], label))
+#             loss = awl(loss_temp[0], loss_temp[1])
+#             # if index == 0:
+#             #     loss *= 6
+#             # elif index == 1:
+#             #     loss *= 4
+#             # elif index == 2:
+#             #     loss *= 20
+#             # elif index == 3:
+#             #     loss *= 1
+#             # elif index == 4:
+#             #     loss *= 200
+#             # elif index == 5:
+#             #     loss *= 4
+#             # elif index == 6:
+#             #     loss *= 1
+#             '''
+#             epoch 5000
+#             bace 0.03
+#             bbbp 0.05
+#             clintox 0.01
+#             HIV 0.17
+#             muv 0.001
+#             tox21 0.05
+#             sider 0.18
+#             '''
+#
+#             # if index == 0:
+#             #     l = criterion(out_list[i + 1], label)
+#             #     # loss2 = criterion(output2, label_false)
+#             #     # loss3 = criterion(output3, label_false)
+#             # elif index == 1:
+#             #     # loss1 = criterion(output1, label_false)
+#             #     l = criterion(output2, label)
+#             #     # loss3 = criterion(output3, label_false)
+#             # else:
+#             #     # loss1 = criterion(output1, label_false)
+#             #     # loss2 = criterion(output2, label_false)
+#             #     l = criterion(output3, label)
+#             # loss = (loss1 + loss2 + loss3 * 2) / 4
+#             optimizer.zero_grad()
+#             loss.backward()
+#             optimizer.step()
+#             train_loss = loss.item()
+#         # if train_loss < 0.00002 :
+#         #     break
+#         if epoch % 2 == 0:
+#             print('Epoch [{}/{}],loss: {:.8f}'.format(epoch, num_epochs, train_loss))
+#             loss_list.append(train_loss)
+#
+#     return loss_list
+
+
+def train_model(mtl_model, datasets_name, dataloaders,loss_type,mode):
+    """
+       对所有数据集进行训练
+       :param mtl_model: 模型
+       :param datasets_name: 任务名字列表
+       :param dataloaders:
+       :param loss_type: 损失函数的种类,0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight
+       :param mode 0是回归,1是分类
+       :return: 所有数据集的loss
+       """
+    print("Start Training {}".format(datasets_name))
+    num_tasks = len(datasets_name)
     # loss和优化器
-    criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.Adam(mtl_classification.parameters(), lr=learning_rate)
+    if mode == 0:
+        # 回归
+        loss_function = nn.MSELoss().to(device)
+        if loss_type == 0 or loss_type == 1 or loss_type == 2:
+            optimizer = torch.optim.SGD(mtl_model.parameters(), lr=learning_rate)
+        else:
+            awl = UncertaintyWeightLoss(num_tasks)
+            optimizer = torch.optim.SGD([
+                {'params': mtl_model.parameters()},
+                {'params': awl.parameters(), 'weight_decay': 0},
+            ], lr=learning_rate)
+        color = "#29b7cb"
+        label_type = torch.float32
+    else:
+        # 分类
+        loss_function = nn.CrossEntropyLoss().to(device)
+        if loss_type == 0 or loss_type == 1 or loss_type == 2:
+            optimizer = torch.optim.Adam(mtl_model.parameters(), lr=learning_rate)
+        else:
+            awl = UncertaintyWeightLoss(num_tasks)
+            optimizer = torch.optim.Adam([
+                {'params': mtl_model.parameters()},
+                {'params': awl.parameters(), 'weight_decay': 0},
+            ], lr=learning_rate)
+        color = "#41ae3c"
+        label_type = torch.int64
 
     # 开始迭代
     loss_list = []
-    for epoch in tqdm(range(num_epochs), colour="#41ae3c"):
-        # 每一次迭代都对所有数据集训练
+    for epoch in tqdm(range(num_epochs), colour=color):
         train_loss = 0
-
-        # index_batch_list exp:[{0: 2}, {1: 4}, {2: 8}, {3: 11}, {4: 12}, {0: 1}, {1: 3}, {2: 7}, {3: 10}, {2: 6}, {3: 9}, {2: 5}]
-        # key 为index,value为batch
         index_batch_list = mix_dataload_into_batches(dataloaders)
         for order_dict in index_batch_list:
-
+            # 对训练数据的加载器进行迭代计算
             (data, label) = tuple(order_dict.values())[0]
             index = tuple(order_dict.keys())[0]
-            # 对每一batch的数据训练
-
-            out_list = mtl_classification(data.to(device))
+            data = data.to(device)
             label = label.to(device)
-            label = label.to(torch.int64)
+            label = label.to(label_type)
 
-            loss_temp = []
-            for i in range(2):
-                if i != index:
-                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.int64)))
-                else:
-                    loss_temp.append(criterion(out_list[index], label))
-            loss = (loss_temp[0] * 17 + loss_temp[1]) / 2
-            # if index == 0:
-            #     loss *= 6
-            # elif index == 1:
-            #     loss *= 4
-            # elif index == 2:
-            #     loss *= 20
-            # elif index == 3:
-            #     loss *= 1
-            # elif index == 4:
-            #     loss *= 200
-            # elif index == 5:
-            #     loss *= 4
-            # elif index == 6:
-            #     loss *= 1
+            out_list = mtl_model(data)  # MLP在训练batch上的输出
+
+            # loss_type: 损失函数的种类,0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight
+
             '''
+            回归
+            5000 epoch
+            esol 0.70
+            freesolv 1.19
+            lipo 4.51
+            
+            分类
             epoch 5000 
             bace 0.03
             bbbp 0.05
@@ -611,127 +809,44 @@ def train_classificition(mtl_classification, datasets_name, dataloaders):
             tox21 0.05
             sider 0.18
             '''
-
-            # if index == 0:
-            #     l = criterion(out_list[i + 1], label)
-            #     # loss2 = criterion(output2, label_false)
-            #     # loss3 = criterion(output3, label_false)
-            # elif index == 1:
-            #     # loss1 = criterion(output1, label_false)
-            #     l = criterion(output2, label)
-            #     # loss3 = criterion(output3, label_false)
-            # else:
-            #     # loss1 = criterion(output1, label_false)
-            #     # loss2 = criterion(output2, label_false)
-            #     l = criterion(output3, label)
-            # loss = (loss1 + loss2 + loss3 * 2) / 4
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            train_loss = loss.item()
-        # if train_loss < 0.00002 :
-        #     break
-        if epoch % 2 == 0:
-            print('Epoch [{}/{}],loss: {:.8f}'.format(epoch, num_epochs, train_loss))
-            loss_list.append(train_loss)
-
-    return loss_list
-
-
-def train_classificition_with_auto_loss(mtl_classification, datasets_name, dataloaders):
-    """
-    所有数据集一起训练.每次迭代一个batch一个数据集
-    :param dataset_name:
-    :return: 这个数据集的测试集
-    """
-    print("Start Training {} ".format(datasets_name))
-
-    # loss和优化器
-    criterion = nn.CrossEntropyLoss().to(device)
-    # optimizer = torch.optim.Adam(mtl_classification.parameters(), lr=learning_rate)
-    awl = UncertaintyWeightLoss(2)
-    optimizer = torch.optim.Adam([
-        {'params': mtl_classification.parameters()},
-        {'params': awl.parameters(), 'weight_decay': 0},
-    ], lr=learning_rate)
-    # 开始迭代
-    loss_list = []
-    for epoch in tqdm(range(num_epochs), colour="#41ae3c"):
-        # 每一次迭代都对所有数据集训练
-        train_loss = 0
-
-        # index_batch_list exp:[{0: 2}, {1: 4}, {2: 8}, {3: 11}, {4: 12}, {0: 1}, {1: 3}, {2: 7}, {3: 10}, {2: 6}, {3: 9}, {2: 5}]
-        # key 为index,value为batch
-        index_batch_list = mix_dataload_into_batches(dataloaders)
-        for order_dict in index_batch_list:
-
-            (data, label) = tuple(order_dict.values())[0]
-            index = tuple(order_dict.keys())[0]
-            # 对每一batch的数据训练
-
-            out_list = mtl_classification(data.to(device))
-            label = label.to(device)
-            label = label.to(torch.int64)
-
-            loss_temp = []
-            for i in range(2):
-                if i != index:
-                    loss_temp.append(criterion(out_list[i], torch.zeros_like(label).to(torch.int64)))
+            if loss_type == 0:
+                # 自己的loss
+                loss = loss_function(out_list[index], label)
+            else:
+                # 除了自己的loss 都需要 not_match_label和loss_temp
+                not_match_label = torch.zeros_like(label).to(label_type)
+                loss_temp = []
+                if loss_type == 1 or loss_type == 2 or loss_type == 3:
+                    # 1是全部loss平均加权,2是全部loss经验比例加权
+                    for i in range(num_tasks):
+                        if i != index:
+                            loss_temp.append(loss_function(out_list[i], not_match_label))
+                        else:
+                            loss_temp.append(loss_function(out_list[index], label))
+                    if loss_type == 1:
+                        loss = sum(loss_temp) / num_tasks
+                    elif loss_type == 2:
+                        loss = sum(loss_temp) / num_tasks
+                    elif loss_type == 3:
+                        loss = awl(loss_temp)
                 else:
-                    loss_temp.append(criterion(out_list[index], label))
-            loss = awl(loss_temp[0], loss_temp[1])
-            # if index == 0:
-            #     loss *= 6
-            # elif index == 1:
-            #     loss *= 4
-            # elif index == 2:
-            #     loss *= 20
-            # elif index == 3:
-            #     loss *= 1
-            # elif index == 4:
-            #     loss *= 200
-            # elif index == 5:
-            #     loss *= 4
-            # elif index == 6:
-            #     loss *= 1
-            '''
-            epoch 5000 
-            bace 0.03
-            bbbp 0.05
-            clintox 0.01
-            HIV 0.17
-            muv 0.001
-            tox21 0.05
-            sider 0.18
-            '''
+                    loss = awl(loss_temp)
 
-            # if index == 0:
-            #     l = criterion(out_list[i + 1], label)
-            #     # loss2 = criterion(output2, label_false)
-            #     # loss3 = criterion(output3, label_false)
-            # elif index == 1:
-            #     # loss1 = criterion(output1, label_false)
-            #     l = criterion(output2, label)
-            #     # loss3 = criterion(output3, label_false)
-            # else:
-            #     # loss1 = criterion(output1, label_false)
-            #     # loss2 = criterion(output2, label_false)
-            #     l = criterion(output3, label)
-            # loss = (loss1 + loss2 + loss3 * 2) / 4
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            optimizer.zero_grad()  # 每次迭代梯度初始化0
+            loss.backward()  # 反向传播，计算梯度
+            optimizer.step()  # 使用梯度进行优化
             train_loss = loss.item()
-        # if train_loss < 0.00002 :
+        # if train_loss < 0.001:
         #     break
-        if epoch % 2 == 0:
-            print('Epoch [{}/{}],loss: {:.8f}'.format(epoch, num_epochs, train_loss))
+        if epoch % 100 == 0:
+            print("Epoch {} / {} loss {}".format(epoch, num_epochs, train_loss))
             loss_list.append(train_loss)
-
     return loss_list
 
 
-def get_regression_RMSE(testloader, model_name, index):
+
+
+def get_regression_RMSE(testloader, model_name, index,model_save_path):
     model = torch.load('{}/regression_{}.pt'.format(model_save_path, model_name))
     model.eval()
     with torch.no_grad():
@@ -751,7 +866,7 @@ def get_regression_RMSE(testloader, model_name, index):
     return RMSE
 
 
-def get_classification_accuracy(testloader, dataset_name, index):
+def get_classification_accuracy(testloader, dataset_name, index,model_save_path):
     model = torch.load('{}/classification_{}.pt'.format(model_save_path, dataset_name))
     model.eval()
 
@@ -769,7 +884,7 @@ def get_classification_accuracy(testloader, dataset_name, index):
     return accuracy
 
 
-def get_classification_auc_roc(testloader, dataset_name, index):
+def get_classification_auc_roc(testloader, dataset_name, index,model_save_path):
     model = torch.load('{}/classification_{}.pt'.format(model_save_path, dataset_name))
     model.eval()
 
@@ -794,7 +909,7 @@ def get_tensor_data(dataset_name):
     return c[0], c[1], c[2], c[3]
 
 
-def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes):
+def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,datas):
     """
 
     :param multi_tasks:
@@ -803,10 +918,10 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
     """
     n_tasks = len(multi_tasks)
 
-    datas = []
-    for index, multi_task in enumerate(multi_tasks):
-        data, test = load_train_set_test_set(multi_task)
-        datas.append(data)
+    # datas = []
+    # for index, multi_task in enumerate(multi_tasks):
+    #     data, test = load_train_set_test_set(multi_task)
+    #     datas.append(data)
 
     model = GradNormLossModel(n_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes)
 
@@ -953,30 +1068,103 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
     ax5.plot(weights[:, 0])
     ax5.plot(weights[:, 1])
     plt.show()
-    torch.save(model, 'classification_grad_loss_model/classification_{}.pt'.format(classfication_model_name))
+    if mode == 0:
+        model_name = "regression_" + model_name
+    else:
+        model_name = "classification_" + model_name
+    torch.save(model, '{}/{}.pt'.format(model_save_path,model_name))
 
 
-def regression_mode(multi_tasks):
-    # 回归多任务模式2
-    mtl_regression = MTL_regression(input_size, hidden_size).to(device)
-    mtl_regression.train()
+def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,loss_type):
+    """
+
+    :param multi_tasks: 任务名字列表
+    :param mode: 0是回归,1是分类
+    :param input_size: 1024维输入
+    :param hidden_size: 第一隐藏层神经元数量
+    :param tower_h1: h1神经元数量
+    :param tower_h2: h2神经元数量
+    :param num_classes: 分类数量
+    :param model_save_path: 模型保存路径
+    :param model_name: 模型名字
+    :param loss_type: 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
+    :return:
+    """
     datas = []
     for index, multi_task in enumerate(multi_tasks):
         data, test = load_train_set_test_set(multi_task)
         datas.append(data)
-    # loss_list = train_regression(mtl_regression,multi_tasks, datas)
-    loss_list = train_regression_with_auto_loss(mtl_regression, multi_tasks, datas)
-    plt.plot(loss_list)
-    plt.title("regression_{}".format(regression_model_name))
-    plt.show()
-    torch.save(mtl_regression, 'regression_auto_loss_model/regression_{}.pt'.format(regression_model_name))
+    if loss_type == 0 or loss_type == 1 or loss_type == 2 or loss_type == 3 or loss_type == 4:
+        if mode == 0:
+            mode_name = "regression"
+            mtl_model = MTL_regression(input_size, hidden_size).to(device)
+            mtl_model.train()
+            loss_list = train_model(mtl_model, multi_tasks, datas, loss_type, mode)
+        else:
+            mode_name = "classification"
+            mtl_model = MTL_classification(input_size, hidden_size, num_classes).to(device)
+            mtl_model.train()
+            loss_list = train_model(mtl_model, multi_tasks, datas, loss_type, mode)
+            # if loss_type == 0:
+            #     loss_list = train_classificition(mtl_model,multi_tasks, datas,loss_type)
+            # elif loss_type == 1:
+            #     loss_list = train_classificition(mtl_model,multi_tasks, datas,loss_type)
+            # elif loss_type == 2:
+            #     loss_list = train_classificition(mtl_model,multi_tasks, datas,loss_type)
+            # elif loss_type == 3:
+            #     loss_list = train_classificition(mtl_model,multi_tasks, datas,loss_type)
+            # else:
+            #     loss_list = train_classificition_with_auto_loss(mtl_model, multi_tasks, datas)
+
+        plt.plot(loss_list)
+        plt.title("{}_{}".format(mode_name,model_name))
+        plt.show()
+        torch.save(mtl_model, '{}/{}_{}.pt'.format(model_save_path, mode_name,model_name))
+    else:
+        # gradnorm loss
+        grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                       model_name, datas)
+
+# def regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type):
+#     """
+#
+#     :param multi_tasks:
+#     :param mode: 0是回归,1是分类
+#     :param input_size:
+#     :param hidden_size:
+#     :param tower_h1:
+#     :param tower_h2:
+#     :param num_classes:
+#     :param model_save_path:
+#     :param regression_model_name:
+#     :param loss_type: 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是grad norm loss
+#     :return:
+#     """
+#
+#     datas = []
+#     for index, multi_task in enumerate(multi_tasks):
+#         data, test = load_train_set_test_set(multi_task)
+#         datas.append(data)
+#     if loss_type == 0 or loss_type == 1 or loss_type == 2 or loss_type == 3:
+#         mtl_regression = MTL_regression(input_size, hidden_size).to(device)
+#         mtl_regression.train()
+#         # loss_list = train_regression(mtl_regression,multi_tasks, datas)
+#         loss_list = train_regression_with_auto_loss(mtl_regression, multi_tasks, datas)
+#         plt.plot(loss_list)
+#         plt.title("regression_{}".format(regression_model_name))
+#         plt.show()
+#         torch.save(mtl_regression, '{}/regression_{}.pt'.format(model_save_path,regression_model_name))
+#     else:
+#         # gradnorm loss
+#         grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+#                        regression_model_name,datas)
 
 
-def regression_test(test_datasets_name, model_save_path):
+def regression_test(test_datasets_name, model_save_path,model_name):
     # 测试回归
     with open("{}/result1.txt".format(model_save_path), "a+", encoding="utf-8") as f:
-        print(regression_model_name, file=f)
-        print(regression_model_name)
+        print(model_name, file=f)
+        print(model_name)
 
         # mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
         for index, test_dataset_name in enumerate(test_datasets_name):
@@ -984,35 +1172,51 @@ def regression_test(test_datasets_name, model_save_path):
             print("Start eval {}".format(file_name))
             print("Start eval {}".format(file_name), file=f)
             _, testloader = load_train_set_test_set(test_dataset_name)
-            RMSE = get_regression_RMSE(testloader, regression_model_name, index, model_save_path)
+            RMSE = get_regression_RMSE(testloader, model_name, index, model_save_path)
             print("{} ".format(RMSE))
             print("{} ".format(RMSE), file=f)
         print(file=f)
 
 
-def classification_mode(multi_tasks):
-    # 分类多任务模式2
+# def classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type):
+#     """
+#
+#     :param multi_tasks:
+#     :param mode:
+#     :param input_size:
+#     :param hidden_size:
+#     :param tower_h1:
+#     :param tower_h2:
+#     :param num_classes:
+#     :param model_save_path:
+#     :param regression_model_name:
+#     :param loss_type: 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是grad norm loss
+#     :return:
+#     """
+#
+#     datas = []
+#     for index, multi_task in enumerate(multi_tasks):
+#         data, test = load_train_set_test_set(multi_task)
+#         datas.append(data)
+#     if loss_type == 0 or loss_type == 1 or loss_type == 2 or loss_type == 3:
+#         mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
+#         mtl_classification.train()
+#         # loss_list = train_classificition(mtl_classification,multi_tasks, datas)
+#         loss_list = train_classificition_with_auto_loss(mtl_classification, multi_tasks, datas)
+#         plt.plot(loss_list)
+#         plt.title("classification_{}".format(classfication_model_name))
+#         plt.show()
+#         torch.save(mtl_classification,'{}/classification_{}.pt'.format(model_save_path,classfication_model_name))
+#     else:
+#         # gradnorm loss
+#         grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+#                        classfication_model_name,datas)
 
-    mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
-    mtl_classification.train()
 
-    datas = []
-    for index, multi_task in enumerate(multi_tasks):
-        data, test = load_train_set_test_set(multi_task)
-        datas.append(data)
-    # loss_list = train_classificition(mtl_classification,multi_tasks, datas)
-    loss_list = train_classificition_with_auto_loss(mtl_classification, multi_tasks, datas)
-    plt.plot(loss_list)
-    plt.title("classification_{}".format(classfication_model_name))
-    plt.show()
-    torch.save(mtl_classification,
-               'classification_auto_loss_model/classification_{}.pt'.format(classfication_model_name))
-
-
-def classification_test(test_datasets_name, model_save_path):
+def classification_test(test_datasets_name, model_save_path,model_name):
     with open("{}/result_new.txt".format(model_save_path), "a+", encoding="utf-8") as f:
-        print(classfication_model_name, file=f)
-        print(classfication_model_name)
+        print(model_name, file=f)
+        print(model_name)
         # 测试分类
 
         # mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
@@ -1020,8 +1224,8 @@ def classification_test(test_datasets_name, model_save_path):
             print("Start eval {}".format(test_dataset_name))
             print("Start eval {}".format(test_dataset_name), file=f)
             _, testloader = load_train_set_test_set(test_dataset_name)
-            accuracy = get_classification_accuracy(testloader, classfication_model_name, index)
-            auc_roc = get_classification_auc_roc(testloader, classfication_model_name, index)
+            accuracy = get_classification_accuracy(testloader, model_name, index,model_save_path)
+            auc_roc = get_classification_auc_roc(testloader, model_name, index,model_save_path)
             print("{} %".format(accuracy))
             print("{} %".format(accuracy), file=f)
 
@@ -1036,12 +1240,16 @@ if __name__ == "__main__":
     num_classes = 2
     learning_rate = 0.0001
     batch_size = 4000
-    num_epochs = 2000
+    num_epochs = 5000
     tower_h1 = 200
     tower_h2 = 50
 
     # grad norm的超参数
     alpha = 0.12
+
+    # 需要重新生成tensor数据的随机种子,修改后需要在 func:load_train_set_test_set() 中取消对prepare_data()的注释
+    seed = 30
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     vocab = load_vocal()
@@ -1052,33 +1260,58 @@ if __name__ == "__main__":
     datasets_name = get_all_dataset()
     datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
 
-    # 回归
-    model_save_path = "regression_grad_loss_model"
-    regression_model_name = "mtl3-14"
-    # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
-    multi_tasks = ["freesolv.csv", "lipo.csv", "esol.csv"]
-    # 普通多任务
-    regression_mode(multi_tasks)
-    # gradnorm loss
-    mode = 0
-    grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes)
-    # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
-    test_datasets_name = ["freesolv.csv", "lipo.csv", "esol.csv"]
-    regression_test(test_datasets_name, model_save_path)
+    # loss_type 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
+    loss_type = 1
 
-    # 分类
-    model_save_path = "classification_grad_loss_model"
-    classfication_model_name = "mtl4-1"
-    # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-    multi_tasks = ["clintox.csv", "bbbp.csv"]
-    # 普通多任务
-    classification_mode(multi_tasks)
-    # gradnorm loss
+    # 0是回归,1是分类
     mode = 1
-    grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes)
-    # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-    test_datasets_name = ["clintox.csv", "bbbp.csv"]
-    classification_test(test_datasets_name, model_save_path)
+
+    model_save_path = "mtl_model/"
+
+    if mode == 0:
+        model_save_path += "regression/"
+    else:
+        model_save_path += "classification/"
+
+    if loss_type == 0:
+        model_save_path += "self_loss_model"
+    elif loss_type == 1:
+        model_save_path += "average_loss_model"
+    elif loss_type == 2:
+        model_save_path += "experience_loss_model"
+    elif loss_type == 3:
+        model_save_path += "uncertainty_weight_loss_model"
+    elif loss_type == 4:
+        model_save_path += "self_loss_with_uncertainty_model"
+    elif loss_type == 5:
+        model_save_path += "grad_norm_loss_model"
+
+
+
+    if mode == 0:
+        # 回归
+        model_name = "mtl-test"
+        # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
+        multi_tasks = ["freesolv.csv", "lipo.csv"]
+        # 普通多任务
+        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,loss_type)
+        # regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type)
+        # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
+        test_datasets_name = ["freesolv.csv", "lipo.csv"]
+        regression_test(test_datasets_name, model_save_path,model_name)
+    else:
+    # 分类
+        model_name = "mtl4-1"
+        # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        multi_tasks = ["clintox.csv", "bbbp.csv"]
+        # 普通多任务
+        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,loss_type)
+        # classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type)
+        # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        test_datasets_name = ["clintox.csv", "bbbp.csv"]
+        classification_test(test_datasets_name, model_save_path,model_name)
+
+
 
 '''
 分类:
