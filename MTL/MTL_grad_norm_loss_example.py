@@ -28,7 +28,7 @@ import torch
 from torch.utils.data.sampler import RandomSampler
 from uncertainty_weight_loss import UncertaintyWeightLoss
 
-from model import GradNormLossModel, GradNormLossTrain
+from model import GradNormLossModel, GradNormLossTrain, MTLRegression, MTLClassification
 
 pad_index = 0
 unk_index = 1
@@ -188,126 +188,6 @@ def get_array(smiles):
     return torch.tensor(x_id), torch.tensor(x_seg)
 
 
-class MTL_regression(nn.Module):
-    def __init__(self, input_size, hidden_size):
-        super(MTL_regression, self).__init__()
-        self.share_layer = nn.Sequential(
-            # 第一个隐含层
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-
-            nn.Linear(hidden_size, tower_h1),
-            nn.ReLU(),
-            # nn.Linear(tower_h1, tower_h2),
-            # nn.ReLU(),
-        )
-        # 回归预测层
-        self.tower1 = nn.Sequential(
-            nn.Linear(tower_h1, tower_h2),
-            nn.ReLU(),
-            nn.Linear(tower_h2, 1)
-        )
-        self.tower2 = nn.Sequential(
-            nn.Linear(tower_h1, tower_h2),
-            nn.ReLU(),
-            nn.Linear(tower_h2, 1)
-        )
-        # self.tower3 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, 1)
-        # )
-        # self.predict = nn.Linear(hidden_size, 1)
-
-    # 定义网络前向传播路径
-    def forward(self, x):
-        share_layer_output = (self.share_layer(x))
-
-        out1 = self.tower1(share_layer_output)
-        out2 = self.tower2(share_layer_output)
-        # out3 = self.tower3(share_layer_output)
-        out = []
-        out.append(out1[:, 0])
-        out.append(out2[:, 0])
-        # out.append(out3[:, 0])
-        # 输出一个一维向量
-        return out
-
-
-class MTL_classification(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes) -> None:
-        super().__init__()
-
-        self.share_layer = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            # nn.Dropout(),
-
-            nn.Linear(hidden_size, tower_h1),
-            nn.ReLU(),
-            # nn.Dropout(),
-            # nn.Dropout(),
-            # nn.Linear(tower_h1, tower_h2),
-            # nn.ReLU(),
-        )
-        self.last = nn.Linear(tower_h1, tower_h2)
-        self.tower1 = nn.Sequential(
-            nn.Linear(tower_h2, num_classes)
-        )
-        self.tower2 = nn.Sequential(
-            nn.Linear(tower_h2, num_classes)
-        )
-        # self.tower3 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower4 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower5 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower6 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower7 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-
-    def forward(self, x):
-        share_layer_output = self.share_layer(x)
-        last_layer = F.relu(self.last(share_layer_output))
-        out1 = self.tower1(last_layer)
-        out2 = self.tower2(last_layer)
-        # out3 = self.tower3(share_layer_output)
-        # out4 = self.tower4(share_layer_output)
-        # out5 = self.tower5(share_layer_output)
-        # out6 = self.tower6(share_layer_output)
-        # out7 = self.tower7(share_layer_output)
-        out = []
-        out.append(out1)
-        out.append(out2)
-        # out.append(out3)
-        # out.append(out4)
-        # out.append(out5)
-        # out.append(out6)
-        # out.append(out7)
-
-        return out
-
-    def get_last_shared_layer(self):
-        return self.last
-
-
 def load_vocal():
     return WordVocab.load_vocab('vocab/vocab.pkl')
 
@@ -331,7 +211,6 @@ def train_test_split(data, test_size=0.2, shuffle=True, random_state=None):
 
 
 def prepare_data(dataset_name):
-
     dataset_detail = get_dataset_detail()[dataset_name]
     df = pd.read_csv('dataset/{}'.format(dataset_name))
     if dataset_name == "bace.csv":
@@ -735,7 +614,7 @@ def mix_dataload_into_batches(dataloaders):
 #     return loss_list
 
 
-def train_model(mtl_model, datasets_name, dataloaders,loss_type,mode):
+def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
     """
        对所有数据集进行训练
        :param mtl_model: 模型
@@ -844,9 +723,7 @@ def train_model(mtl_model, datasets_name, dataloaders,loss_type,mode):
     return loss_list
 
 
-
-
-def get_regression_RMSE(testloader, model_name, index,model_save_path):
+def get_regression_RMSE(testloader, model_name, index, model_save_path):
     model = torch.load('{}/regression_{}.pt'.format(model_save_path, model_name))
     model.eval()
     with torch.no_grad():
@@ -866,7 +743,7 @@ def get_regression_RMSE(testloader, model_name, index,model_save_path):
     return RMSE
 
 
-def get_classification_accuracy(testloader, dataset_name, index,model_save_path):
+def get_classification_accuracy(testloader, dataset_name, index, model_save_path):
     model = torch.load('{}/classification_{}.pt'.format(model_save_path, dataset_name))
     model.eval()
 
@@ -884,7 +761,7 @@ def get_classification_accuracy(testloader, dataset_name, index,model_save_path)
     return accuracy
 
 
-def get_classification_auc_roc(testloader, dataset_name, index,model_save_path):
+def get_classification_auc_roc(testloader, dataset_name, index, model_save_path):
     model = torch.load('{}/classification_{}.pt'.format(model_save_path, dataset_name))
     model.eval()
 
@@ -909,7 +786,8 @@ def get_tensor_data(dataset_name):
     return c[0], c[1], c[2], c[3]
 
 
-def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,datas):
+def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                   model_name, datas):
     """
 
     :param multi_tasks:
@@ -948,7 +826,8 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
                 X = X.cuda()
                 target = target.cuda()
             # evaluate each task loss L_i(t)
-            task_loss = train(X, target, index)  # this will do a forward pass in the model and will also evaluate the loss
+            task_loss = train(X, target,
+                              index)  # this will do a forward pass in the model and will also evaluate the loss
             # compute the weighted loss w_i(t) * L_i(t)
             weighted_task_loss = torch.mul(train.weights, task_loss)
             # initialize the initial loss L(0) if t=0
@@ -1072,10 +951,11 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
         model_name = "regression_" + model_name
     else:
         model_name = "classification_" + model_name
-    torch.save(model, '{}/{}.pt'.format(model_save_path,model_name))
+    torch.save(model, '{}/{}.pt'.format(model_save_path, model_name))
 
 
-def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,loss_type):
+def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                     model_name, loss_type):
     """
 
     :param multi_tasks: 任务名字列表
@@ -1094,15 +974,16 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
     for index, multi_task in enumerate(multi_tasks):
         data, test = load_train_set_test_set(multi_task)
         datas.append(data)
+    num_tasks = len(multi_tasks)
     if loss_type == 0 or loss_type == 1 or loss_type == 2 or loss_type == 3 or loss_type == 4:
         if mode == 0:
             mode_name = "regression"
-            mtl_model = MTL_regression(input_size, hidden_size).to(device)
+            mtl_model = MTLRegression(input_size, hidden_size, tower_h1, tower_h2,num_tasks).to(device)
             mtl_model.train()
             loss_list = train_model(mtl_model, multi_tasks, datas, loss_type, mode)
         else:
             mode_name = "classification"
-            mtl_model = MTL_classification(input_size, hidden_size, num_classes).to(device)
+            mtl_model = MTLClassification(input_size, hidden_size, num_classes, tower_h1, tower_h2).to(device)
             mtl_model.train()
             loss_list = train_model(mtl_model, multi_tasks, datas, loss_type, mode)
             # if loss_type == 0:
@@ -1117,13 +998,14 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
             #     loss_list = train_classificition_with_auto_loss(mtl_model, multi_tasks, datas)
 
         plt.plot(loss_list)
-        plt.title("{}_{}".format(mode_name,model_name))
+        plt.title("{}_{}".format(mode_name, model_name))
         plt.show()
-        torch.save(mtl_model, '{}/{}_{}.pt'.format(model_save_path, mode_name,model_name))
+        torch.save(mtl_model, '{}/{}_{}.pt'.format(model_save_path, mode_name, model_name))
     else:
         # gradnorm loss
         grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
                        model_name, datas)
+
 
 # def regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type):
 #     """
@@ -1160,11 +1042,14 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
 #                        regression_model_name,datas)
 
 
-def regression_test(test_datasets_name, model_save_path,model_name):
+def regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters):
     # 测试回归
-    with open("{}/result1.txt".format(model_save_path), "a+", encoding="utf-8") as f:
+    with open("{}/result.txt".format(model_save_path), "a+", encoding="utf-8") as f:
         print(model_name, file=f)
         print(model_name)
+        for key in hyper_parameters.keys():
+            print("{} : {}".format(key, hyper_parameters[key]), file=f)
+            print("{} : {}".format(key, hyper_parameters[key]))
 
         # mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
         for index, test_dataset_name in enumerate(test_datasets_name):
@@ -1213,10 +1098,13 @@ def regression_test(test_datasets_name, model_save_path,model_name):
 #                        classfication_model_name,datas)
 
 
-def classification_test(test_datasets_name, model_save_path,model_name):
-    with open("{}/result_new.txt".format(model_save_path), "a+", encoding="utf-8") as f:
+def classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters):
+    with open("{}/result.txt".format(model_save_path), "a+", encoding="utf-8") as f:
         print(model_name, file=f)
         print(model_name)
+        for key in hyper_parameters.keys():
+            print("{} : {}".format(key, hyper_parameters[key]), file=f)
+            print("{} : {}".format(key, hyper_parameters[key]))
         # 测试分类
 
         # mtl_classification = MTL_classification(input_size, hidden_size, num_classes).to(device)
@@ -1224,8 +1112,8 @@ def classification_test(test_datasets_name, model_save_path,model_name):
             print("Start eval {}".format(test_dataset_name))
             print("Start eval {}".format(test_dataset_name), file=f)
             _, testloader = load_train_set_test_set(test_dataset_name)
-            accuracy = get_classification_accuracy(testloader, model_name, index,model_save_path)
-            auc_roc = get_classification_auc_roc(testloader, model_name, index,model_save_path)
+            accuracy = get_classification_accuracy(testloader, model_name, index, model_save_path)
+            auc_roc = get_classification_auc_roc(testloader, model_name, index, model_save_path)
             print("{} %".format(accuracy))
             print("{} %".format(accuracy), file=f)
 
@@ -1238,7 +1126,7 @@ if __name__ == "__main__":
     input_size = 1024
     hidden_size = 500
     num_classes = 2
-    learning_rate = 0.0001
+    learning_rate = 0.001
     batch_size = 4000
     num_epochs = 5000
     tower_h1 = 200
@@ -1251,7 +1139,7 @@ if __name__ == "__main__":
     seed = 30
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    print(device)
     vocab = load_vocal()
     trfm = load_transformer(vocab)
 
@@ -1261,10 +1149,25 @@ if __name__ == "__main__":
     datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
 
     # loss_type 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
-    loss_type = 1
+    loss_type = 0
 
     # 0是回归,1是分类
-    mode = 1
+    mode = 0
+    if mode == 0:
+        num_classes = 1
+
+    hyper_parameters = {
+        "input_size": input_size,
+        "hidden_size": hidden_size,
+        "num_classes": num_classes,
+        "learning_rate": learning_rate,
+        "batch_size": batch_size,
+        "num_epochs": num_epochs,
+        "tower_h1": tower_h1,
+        "tower_h2": tower_h2,
+        "alpha": alpha,
+        "seed": seed
+    }
 
     model_save_path = "mtl_model/"
 
@@ -1275,43 +1178,53 @@ if __name__ == "__main__":
 
     if loss_type == 0:
         model_save_path += "self_loss_model"
+        loss_type_hint = "计算自己的 loss"
     elif loss_type == 1:
         model_save_path += "average_loss_model"
+        loss_type_hint = "全部 loss 平均加权"
     elif loss_type == 2:
         model_save_path += "experience_loss_model"
+        loss_type_hint = "全部 loss 经验比例加权"
     elif loss_type == 3:
         model_save_path += "uncertainty_weight_loss_model"
+        loss_type_hint = "uncertainty weight 比例加权"
     elif loss_type == 4:
         model_save_path += "self_loss_with_uncertainty_model"
-    elif loss_type == 5:
+        loss_type_hint = "在自己的 loss 上使用 uncertainty weight"
+    else:
         model_save_path += "grad_norm_loss_model"
+        loss_type_hint = "grad norm loss"
 
-
+    if mode == 0:
+        print("训练回归任务")
+    else:
+        print("训练分类任务")
+    print(loss_type_hint)
 
     if mode == 0:
         # 回归
         model_name = "mtl-test"
         # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
-        multi_tasks = ["freesolv.csv", "lipo.csv"]
+        multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
         # 普通多任务
-        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,loss_type)
+        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                         model_name, loss_type)
         # regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type)
         # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
         test_datasets_name = ["freesolv.csv", "lipo.csv"]
-        regression_test(test_datasets_name, model_save_path,model_name)
+        regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
     else:
-    # 分类
+        # 分类
         model_name = "mtl4-1"
         # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
         multi_tasks = ["clintox.csv", "bbbp.csv"]
         # 普通多任务
-        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,model_name,loss_type)
+        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                         model_name, loss_type)
         # classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type)
         # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
         test_datasets_name = ["clintox.csv", "bbbp.csv"]
-        classification_test(test_datasets_name, model_save_path,model_name)
-
-
+        classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
 
 '''
 分类:

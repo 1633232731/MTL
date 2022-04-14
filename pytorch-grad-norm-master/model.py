@@ -21,7 +21,7 @@ class RegressionTrain(torch.nn.Module):
         # assign the architectures
         self.model = model
         # assign the weights for each task
-        self.weights = torch.nn.Parameter(torch.ones(model.n_tasks).float())
+        self.weights = torch.nn.Parameter(torch.ones(model.num_tasks).float())
         # loss function
         self.mse_loss = MSELoss()
 
