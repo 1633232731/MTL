@@ -173,7 +173,7 @@ class MTLRegression(nn.Module):
 
 
 class MTLClassification(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes, tower_h1, tower_h2) -> None:
+    def __init__(self, input_size, hidden_size, num_classes, tower_h1, tower_h2,num_tasks) -> None:
         super().__init__()
 
         self.share_layer = nn.Sequential(
@@ -188,13 +188,19 @@ class MTLClassification(nn.Module):
             # nn.Linear(tower_h1, tower_h2),
             # nn.ReLU(),
         )
-        self.last = nn.Linear(tower_h1, tower_h2)
-        self.tower1 = nn.Sequential(
-            nn.Linear(tower_h2, num_classes)
-        )
-        self.tower2 = nn.Sequential(
-            nn.Linear(tower_h2, num_classes)
-        )
+        self.num_tasks = num_tasks
+        for i in range(self.num_tasks):
+            setattr(self, 'task_separate_layer_{}'.format(i), torch.nn.Linear(tower_h1, tower_h2))
+
+        for i in range(self.num_tasks):
+            setattr(self, 'predict_{}'.format(i), torch.nn.Linear(tower_h2, num_classes))
+        # self.last = nn.Linear(tower_h1, tower_h2)
+        # self.tower1 = nn.Sequential(
+        #     nn.Linear(tower_h2, num_classes)
+        # )
+        # self.tower2 = nn.Sequential(
+        #     nn.Linear(tower_h2, num_classes)
+        # )
         # self.tower3 = nn.Sequential(
         #     nn.Linear(tower_h1, tower_h2),
         #     nn.ReLU(),
@@ -222,18 +228,28 @@ class MTLClassification(nn.Module):
         # )
 
     def forward(self, x):
-        share_layer_output = self.share_layer(x)
-        last_layer = F.relu(self.last(share_layer_output))
-        out1 = self.tower1(last_layer)
-        out2 = self.tower2(last_layer)
+        out = []
+        t = []
+        share_layer_output = (self.share_layer(x))
+
+        for i in range(self.num_tasks):
+            task_separate_layer = getattr(self, 'task_separate_layer_{}'.format(i))
+            t.append(F.relu(task_separate_layer(share_layer_output)))
+
+        for i in range(self.num_tasks):
+            predict = getattr(self, 'predict_{}'.format(i))
+            out.append(predict(t[i]))
+        # last_layer = F.relu(self.last(share_layer_output))
+        # out1 = self.tower1(last_layer)
+        # out2 = self.tower2(last_layer)
         # out3 = self.tower3(share_layer_output)
         # out4 = self.tower4(share_layer_output)
         # out5 = self.tower5(share_layer_output)
         # out6 = self.tower6(share_layer_output)
         # out7 = self.tower7(share_layer_output)
-        out = []
-        out.append(out1)
-        out.append(out2)
+        # out = []
+        # out.append(out1)
+        # out.append(out2)
         # out.append(out3)
         # out.append(out4)
         # out.append(out5)
@@ -242,6 +258,4 @@ class MTLClassification(nn.Module):
 
         return out
 
-    def get_last_shared_layer(self):
-        return self.last
         
