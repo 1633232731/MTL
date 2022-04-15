@@ -733,8 +733,16 @@ def regression_test(test_datasets_name, model_save_path, model_name, hyper_param
             print("Start eval {}".format(file_name), file=f)
             _, testloader = load_train_set_test_set(test_dataset_name)
             RMSE = get_regression_RMSE(testloader, model_name, index, model_save_path)
-            print("{} ".format(RMSE))
-            print("{} ".format(RMSE), file=f)
+            if float(RMSE) < single_task_score[test_dataset_name]:
+                compare_hint = "优于"
+                compare_rate = (single_task_score[test_dataset_name] - float(RMSE)) / single_task_score[test_dataset_name]
+            else:
+                compare_hint = "劣于"
+                compare_rate = (float(RMSE) - single_task_score[test_dataset_name]) / single_task_score[test_dataset_name]
+            print("{} {}单任务 {} -- {}%".format(RMSE,compare_hint,single_task_score[test_dataset_name],compare_rate))
+            print("{} {}单任务 {} -- {}%".format(RMSE,compare_hint,single_task_score[test_dataset_name],compare_rate), file=f)
+
+
             print(file=f)
         print("---------------------------------", file=f)
         print(file=f)
@@ -760,9 +768,14 @@ def classification_test(test_datasets_name, model_save_path, model_name, hyper_p
             auc_roc = get_classification_auc_roc(testloader, model_name, index, model_save_path)
             print("{} %".format(accuracy))
             print("{} %".format(accuracy), file=f)
-
-            print("AUC:{:.4f}".format(auc_roc))
-            print("AUC:{:.4f}".format(auc_roc), file=f)
+            if float(auc_roc) > single_task_score[test_dataset_name]:
+                compare_hint = "优于"
+                compare_rate = (float(auc_roc) - single_task_score[test_dataset_name]) / single_task_score[test_dataset_name]
+            else:
+                compare_hint = "劣于"
+                compare_rate = (single_task_score[test_dataset_name] - float(auc_roc)) / single_task_score[test_dataset_name]
+            print("AUC:{:.4f} {}单任务 {} -- {}%".format(auc_roc,compare_hint,single_task_score[test_dataset_name],compare_rate))
+            print("AUC:{:.4f} {}单任务 {} -- {}%".format(auc_roc,compare_hint,single_task_score[test_dataset_name],compare_rate), file=f)
             print(file=f)
         print("---------------------------------", file=f)
         print(file=f)
@@ -772,7 +785,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='多任务模式')
     parser.add_argument('--num_epochs', '-n', type=int, default=2000, help="迭代次数")
-    parser.add_argument('--mode', '-m', choices=(0, 1), default=1,
+    parser.add_argument('--mode', '-m', choices=(0, 1), default=0,
                         help="模式选择 0是回归,1是分类")
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help="学习率")
     parser.add_argument('--batch_size', '-b', type=int, default=200, help="batch大小")
@@ -823,7 +836,7 @@ if __name__ == "__main__":
 
     datasets_name = get_all_dataset()
     datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-
+    datasets_name = ["esol.csv", "freesolv.csv", "lipo.csv"]
 
 
     hyper_parameters = {
@@ -874,30 +887,48 @@ if __name__ == "__main__":
     else:
         print("训练分类任务")
     print(loss_type_hint)
-
-    if mode == 0:
-        # 回归
-        # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
-        multi_tasks = ["freesolv.csv", "lipo.csv", "esol.csv"]
-        # 普通多任务
-        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
-                         model_name, loss_type)
-        # regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type)
-        # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
-        test_datasets_name = ["freesolv.csv", "lipo.csv", "esol.csv"]
-        regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
-    else:
-        # 分类
-        multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-        # multi_tasks = ["clintox.csv", "bbbp.csv"]
-        # 普通多任务
-        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
-                         model_name, loss_type)
-        # classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type)
-        test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-        # test_datasets_name = ["clintox.csv", "bbbp.csv"]
-        classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
-
+    single_task_score = {
+        "bace.csv": 0.8456,
+        "bbbp.csv": 0.9451,
+        "clintox.csv": 0.9791,
+        "HIV.csv": 0.7304,
+        "muv.csv": 0.7605,
+        "tox21.csv": 0.765,
+        "sider.csv": 0.6544,
+        "esol.csv": 0.7814,
+        "freesolv.csv": 1.6867,
+        "lipo.csv": 0.9607,
+    }
+    multi_tasks = []
+    for i in range(0,len(datasets_name)):
+        for j in range(i + 1,len(datasets_name)):
+            multi_tasks.append(datasets_name[i])
+            multi_tasks.append(datasets_name[j])
+            model_name = "mtl_{}_{}".format(multi_tasks[0].split(".")[0],multi_tasks[1].split(".")[0])
+            if mode == 0:
+                # 回归
+                # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
+                # multi_tasks = ["freesolv.csv", "lipo.csv", "esol.csv"]
+                # 普通多任务
+                multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                                 model_name, loss_type)
+                # regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type)
+                # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
+                test_datasets_name = multi_tasks
+                regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
+            else:
+                # 分类
+                # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+                # multi_tasks = ["clintox.csv", "bbbp.csv"]
+                # 普通多任务
+                multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                                 model_name, loss_type)
+                # classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type)
+                # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+                test_datasets_name = multi_tasks
+                classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
+            multi_tasks.clear()
+            print()
 '''
 分类:
 ["clintox.csv","sider.csv"]
