@@ -38,19 +38,21 @@ class GradNormLossTrain(torch.nn.Module):
         task_loss = []
         for i in range(n_tasks):
             if index == i:
+                # 是该任务的输出
                 if mode == 0:
                     # 回归
-                    task_loss.append(self.mse_loss(ys[index].squeeze(dim=1), target))
+                    task_loss.append(self.loss_function(ys[index].squeeze(dim=1), target))
                 else:
                     # 分类
-                    task_loss.append(self.loss_function(ys[index][:,1], target))
+                    task_loss.append(self.loss_function(ys[index], target))
             else:
+                # 不是该任务的输出
                 if mode == 0:
                     # 回归
-                    task_loss.append(self.mse_loss(torch.zeros_like(ys[index].squeeze(dim=1)), target))
+                    task_loss.append(self.loss_function(ys[index].squeeze(dim=1), torch.zeros_like(ys[index].squeeze(dim=1))))
                 else:
                     # 分类
-                    task_loss.append(self.loss_function(torch.zeros_like(ys[index][:,1]), target))
+                    task_loss.append(self.loss_function(ys[index], torch.zeros_like(ys[index][:,1])))
         task_loss = torch.stack(task_loss)
         return task_loss
 

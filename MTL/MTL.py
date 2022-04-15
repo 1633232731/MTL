@@ -1,3 +1,4 @@
+import argparse
 import os
 import random
 import time
@@ -314,6 +315,39 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
        :return: 所有数据集的loss
        """
     print("Start Training {}".format(datasets_name))
+    '''
+    回归
+    5000 epoch
+    esol 0.70
+    freesolv 1.19
+    lipo 4.51
+
+    分类
+    epoch 5000 
+    bace 0.03
+    bbbp 0.05
+    clintox 0.01
+    HIV 0.17
+    muv 0.001
+    tox21 0.05
+    sider 0.18
+    '''
+    dataset_rate = {
+        "bace.csv": 1 / 0.03,
+        "bbbp.csv": 1 / 0.05,
+        "clintox.csv": 1 / 0.01,
+        "HIV.csv": 1 / 0.17,
+        "muv.csv": 1 / 0.001,
+        "tox21.csv": 1 / 0.05,
+        "sider.csv": 1 / 0.18,
+        "esol.csv": 1 / 0.7,
+        "freesolv.csv": 1 / 1.19,
+        "lipo.csv": 1 / 4.51,
+    }
+    t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
+         "freesolv.csv", "lipo.csv"]
+
+
     num_tasks = len(datasets_name)
     # loss和优化器
     if mode == 0:
@@ -360,23 +394,7 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
 
             # loss_type: 损失函数的种类,0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight
 
-            '''
-            回归
-            5000 epoch
-            esol 0.70
-            freesolv 1.19
-            lipo 4.51
-            
-            分类
-            epoch 5000 
-            bace 0.03
-            bbbp 0.05
-            clintox 0.01
-            HIV 0.17
-            muv 0.001
-            tox21 0.05
-            sider 0.18
-            '''
+
             if loss_type == 0:
                 # 自己的loss
                 loss = loss_function(out_list[index], label)
@@ -394,10 +412,14 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
                     if loss_type == 1:
                         loss = sum(loss_temp) / num_tasks
                     elif loss_type == 2:
-                        loss = sum(loss_temp) / num_tasks
+                        loss = 0
+                        for t,dataset_name in enumerate(datasets_name):
+                            loss += loss_temp[t] * dataset_rate[dataset_name]
+                        # loss = sum(loss_temp) / num_tasks
                     elif loss_type == 3:
                         loss = awl(loss_temp)
                 else:
+                    # TODO: 是在自己的 loss 上使用 uncertainty weight
                     loss = awl(loss_temp)
 
             optimizer.zero_grad()  # 每次迭代梯度初始化0
@@ -502,6 +524,10 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
     task_losses = []
     loss_ratios = []
     grad_norm_losses = []
+    if mode == 0:
+        label_type = torch.float32
+    else:
+        label_type = torch.int64
     # run n_iter iterations of training
     for t in tqdm(range(num_epochs), colour="#29b7cb"):
         # get a single batch
@@ -510,7 +536,7 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
             # 对训练数据的加载器进行迭代计算
             (X, target) = tuple(order_dict.values())[0]
             index = tuple(order_dict.keys())[0]
-            target = target.to(torch.float32)
+            target = target.to(label_type)
             if torch.cuda.is_available():
                 X = X.cuda()
                 target = target.cuda()
@@ -615,24 +641,29 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
     weights = np.array(weights)
 
     fig = plt.figure()
-    ax1 = fig.add_subplot(2, 3, 1)
-    # ax1.set_title(r'Loss (scale $\sigma_0=1.0$)')
-    ax2 = fig.add_subplot(2, 3, 2)
-    # aax2.set_title(r'Loss (scale $\sigma_1={})$'.format(sigmas[1]))
-    ax3 = fig.add_subplot(2, 3, 3)
-    # aax3.set_title(r"$\sum_i L_i(t) / L_i(0)$")
-    ax4 = fig.add_subplot(2, 3, 4)
-    # aax4.set_title(r'$L_{\text{grad}}$')
 
-    ax5 = fig.add_subplot(2, 3, 5)
-    # aax5.set_title(r'Change of weights $w_i$ over time')
+    plt_list = []
+    for i in range(n_tasks):
+        plt_list.append(fig.add_subplot(4, 3, i + 1))
+        plt_list[i].set_title('Task {} Loss'.format(i + 1))
 
-    ax1.plot(task_losses[:, 0])
-    ax2.plot(task_losses[:, 1])
-    ax3.plot(loss_ratios)
-    ax4.plot(grad_norm_losses)
-    ax5.plot(weights[:, 0])
-    ax5.plot(weights[:, 1])
+    plt1 = fig.add_subplot(4, 3, n_tasks + 1)
+    plt1.set_title("L_i(t) / L_i(0)")
+
+    plt2 = fig.add_subplot(4, 3, n_tasks + 2)
+    plt2.set_title('grad')
+
+    plt3 = fig.add_subplot(4, 3, n_tasks + 3)
+    plt3.set_title('Change of weights')
+    for i in range(n_tasks):
+        plt_list[i].plot(task_losses[:, i])
+
+    plt1.plot(loss_ratios)
+    plt2.plot(grad_norm_losses)
+    plt3.plot(weights[:, 0])
+    plt3.plot(weights[:, 1])
+    plt3.plot(weights[:, 2])
+
     plt.show()
     if mode == 0:
         model_name = "regression_" + model_name
@@ -738,39 +769,62 @@ def classification_test(test_datasets_name, model_save_path, model_name, hyper_p
 
 
 if __name__ == "__main__":
-    input_size = 1024
-    hidden_size = 500
+
+    parser = argparse.ArgumentParser(description='多任务模式')
+    parser.add_argument('--num_epochs', '-n', type=int, default=2000, help="迭代次数")
+    parser.add_argument('--mode', '-m', choices=(0, 1), default=1,
+                        help="模式选择 0是回归,1是分类")
+    parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help="学习率")
+    parser.add_argument('--batch_size', '-b', type=int, default=200, help="batch大小")
+    parser.add_argument('--hidden_size', '-h1', type=int, default=500, help="第二层神经元数量")
+    parser.add_argument('--tower_h1', '-h2', type=int, default=200, help="第三层神经元数量")
+    parser.add_argument('--tower_h2', '-h3', type=int, default=50, help="第四层神经元数量")
+    parser.add_argument('--alpha', '-a', type=float, default=0.12, help="grad norm的超参数")
+    parser.add_argument('--seed', '-s', type=int, default=30, help="需要重新生成tensor数据的随机种子")
+    parser.add_argument('--model_name', '-mn', type=str, default="mtl1", help="模型名字(如已有则覆盖)")
+    parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5), type=int, default=0,
+                        help="0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss")
+    args = parser.parse_args()
+
+    hidden_size = args.hidden_size
+    tower_h1 = args.tower_h1
+    tower_h2 = args.tower_h2
+    learning_rate = args.learning_rate
+    batch_size = args.batch_size
+    num_epochs = args.num_epochs
+    model_name = args.model_name
     num_classes = 2
-    learning_rate = 0.001
-    batch_size = 4000
-    num_epochs = 5000
-    tower_h1 = 200
-    tower_h2 = 50
+    input_size = 1024
+
+    # 0是回归,1是分类
+    mode = args.mode
+    if mode == 0:
+        num_classes = 1
 
     # grad norm的超参数
-    alpha = 0.12
+    alpha = args.alpha
+
+    # loss_type 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
+    loss_type = args.loss_type
 
     # 需要重新生成tensor数据的随机种子,修改后需要在 func:load_train_set_test_set() 中取消对prepare_data()的注释
-    seed = 30
+    seed = args.seed
+    torch.manual_seed(seed)  # 为CPU设置随机种子
+    torch.cuda.manual_seed(seed) # 为当前GPU设置随机种子
+    torch.cuda.manual_seed_all(seed) # 为所有GPU设置随机种子
+    random.seed(seed)
+    np.random.seed(seed)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     vocab = load_vocal()
     trfm = load_transformer(vocab)
 
-    # t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
-    #      "freesolv.csv", "lipo.csv"]
+
     datasets_name = get_all_dataset()
     datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
 
-    # loss_type 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
-    loss_type = 0
 
-    # 0是回归,1是分类
-    mode = 1
-
-    if mode == 0:
-        num_classes = 1
 
     hyper_parameters = {
         "input_size": input_size,
@@ -823,7 +877,6 @@ if __name__ == "__main__":
 
     if mode == 0:
         # 回归
-        model_name = "mtl-test"
         # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
         multi_tasks = ["freesolv.csv", "lipo.csv", "esol.csv"]
         # 普通多任务
@@ -835,15 +888,14 @@ if __name__ == "__main__":
         regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
     else:
         # 分类
-        model_name = "mtl-test"
-        # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-        multi_tasks = ["clintox.csv", "bbbp.csv"]
+        multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        # multi_tasks = ["clintox.csv", "bbbp.csv"]
         # 普通多任务
         multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
                          model_name, loss_type)
         # classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type)
-        # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-        test_datasets_name = ["clintox.csv", "bbbp.csv"]
+        test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        # test_datasets_name = ["clintox.csv", "bbbp.csv"]
         classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
 
 '''
