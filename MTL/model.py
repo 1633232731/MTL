@@ -49,7 +49,8 @@ class GradNormLossTrain(torch.nn.Module):
                 # 不是该任务的输出
                 if mode == 0:
                     # 回归
-                    task_loss.append(self.loss_function(ys[index].squeeze(dim=1), torch.zeros_like(ys[index].squeeze(dim=1))))
+                    # task_loss.append(self.loss_function(ys[index].squeeze(dim=1), torch.zeros_like(ys[index].squeeze(dim=1))))
+                    task_loss.append(self.loss_function(torch.zeros_like(ys[index].squeeze(dim=1)), target))
                 else:
                     # 分类
                     task_loss.append(self.loss_function(ys[index], torch.zeros_like(ys[index][:,1])))
@@ -113,7 +114,11 @@ class GradNormLossModel(torch.nn.Module):
     def get_last_shared_layer(self):
         return self.l3
 
+
+
+
 class MTLRegression(nn.Module):
+    # 多任务回归 2 + 2 架构
     def __init__(self, input_size, hidden_size, tower_h1, tower_h2,num_tasks):
         super(MTLRegression, self).__init__()
         self.share_layer = nn.Sequential(
@@ -132,23 +137,6 @@ class MTLRegression(nn.Module):
 
         for i in range(self.num_tasks):
             setattr(self, 'predict_{}'.format(i), torch.nn.Linear(tower_h2, 1))
-        # 回归预测层
-        # self.tower1 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, 1)
-        # )
-        # self.tower2 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, 1)
-        # )
-        # self.tower3 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, 1)
-        # )
-        # self.predict = nn.Linear(hidden_size, 1)
 
     # 定义网络前向传播路径
     def forward(self, x):
@@ -164,15 +152,45 @@ class MTLRegression(nn.Module):
             predict = getattr(self, 'predict_{}'.format(i))
             out.append(predict(t[i])[:, 0])
 
-        # out1 = self.tower1(share_layer_output)
-        # out2 = self.tower2(share_layer_output)
-        # out3 = self.tower3(share_layer_output)
-        # out.append(out1[:, 0])
-        # out.append(out2[:, 0])
-        # out.append(out3[:, 0])
         # 输出一个一维向量
         return out
 
+class MTLRegression_3p1(nn.Module):
+    # 多任务回归 3 + 1 架构
+    def __init__(self, input_size, hidden_size, tower_h1, tower_h2,num_tasks):
+        super(MTLRegression_3p1, self).__init__()
+        self.share_layer = nn.Sequential(
+            # 第一个隐含层
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU(),
+
+            nn.Linear(hidden_size, tower_h1),
+            nn.ReLU(),
+            nn.Linear(tower_h1, tower_h2),
+            nn.ReLU(),
+        )
+        self.num_tasks = num_tasks
+        # for i in range(self.num_tasks):
+        #     setattr(self, 'task_separate_layer_{}'.format(i), torch.nn.Linear(tower_h1, tower_h2))
+
+        for i in range(self.num_tasks):
+            setattr(self, 'predict_{}'.format(i), torch.nn.Linear(tower_h2, 1))
+
+    # 定义网络前向传播路径
+    def forward(self, x):
+        out = []
+        share_layer_output = (self.share_layer(x))
+
+        # for i in range(self.num_tasks):
+        #     task_separate_layer = getattr(self, 'task_separate_layer_{}'.format(i))
+        #     t.append(F.relu(task_separate_layer(share_layer_output)))
+
+        for i in range(self.num_tasks):
+            predict = getattr(self, 'predict_{}'.format(i))
+            out.append(predict(share_layer_output)[:, 0])
+
+        # 输出一个一维向量
+        return out
 
 class MTLClassification(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes, tower_h1, tower_h2,num_tasks) -> None:
@@ -181,12 +199,9 @@ class MTLClassification(nn.Module):
         self.share_layer = nn.Sequential(
             nn.Linear(input_size, hidden_size),
             nn.ReLU(),
-            # nn.Dropout(),
 
             nn.Linear(hidden_size, tower_h1),
             nn.ReLU(),
-            # nn.Dropout(),
-            # nn.Dropout(),
             # nn.Linear(tower_h1, tower_h2),
             # nn.ReLU(),
         )
@@ -196,38 +211,6 @@ class MTLClassification(nn.Module):
 
         for i in range(self.num_tasks):
             setattr(self, 'predict_{}'.format(i), torch.nn.Linear(tower_h2, num_classes))
-        # self.last = nn.Linear(tower_h1, tower_h2)
-        # self.tower1 = nn.Sequential(
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower2 = nn.Sequential(
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower3 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower4 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower5 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower6 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
-        # self.tower7 = nn.Sequential(
-        #     nn.Linear(tower_h1, tower_h2),
-        #     nn.ReLU(),
-        #     nn.Linear(tower_h2, num_classes)
-        # )
 
     def forward(self, x):
         out = []
@@ -241,23 +224,42 @@ class MTLClassification(nn.Module):
         for i in range(self.num_tasks):
             predict = getattr(self, 'predict_{}'.format(i))
             out.append(predict(t[i]))
-        # last_layer = F.relu(self.last(share_layer_output))
-        # out1 = self.tower1(last_layer)
-        # out2 = self.tower2(last_layer)
-        # out3 = self.tower3(share_layer_output)
-        # out4 = self.tower4(share_layer_output)
-        # out5 = self.tower5(share_layer_output)
-        # out6 = self.tower6(share_layer_output)
-        # out7 = self.tower7(share_layer_output)
-        # out = []
-        # out.append(out1)
-        # out.append(out2)
-        # out.append(out3)
-        # out.append(out4)
-        # out.append(out5)
-        # out.append(out6)
-        # out.append(out7)
 
         return out
 
+class MTLClassification_3p1(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes, tower_h1, tower_h2,num_tasks) -> None:
+        super().__init__()
+
+        self.share_layer = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU(),
+
+            nn.Linear(hidden_size, tower_h1),
+            nn.ReLU(),
+
+            nn.Linear(tower_h1, tower_h2),
+            nn.ReLU(),
+        )
+        self.num_tasks = num_tasks
+        # for i in range(self.num_tasks):
+        #     setattr(self, 'task_separate_layer_{}'.format(i), torch.nn.Linear(tower_h1, tower_h2))
+
+        for i in range(self.num_tasks):
+            setattr(self, 'predict_{}'.format(i), torch.nn.Linear(tower_h2, num_classes))
+
+    def forward(self, x):
+        out = []
+        # t = []
+        share_layer_output = (self.share_layer(x))
+
+        # for i in range(self.num_tasks):
+        #     task_separate_layer = getattr(self, 'task_separate_layer_{}'.format(i))
+        #     t.append(F.relu(task_separate_layer(share_layer_output)))
+
+        for i in range(self.num_tasks):
+            predict = getattr(self, 'predict_{}'.format(i))
+            out.append(predict(share_layer_output))
+
+        return out
         

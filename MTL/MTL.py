@@ -29,7 +29,8 @@ import torch
 from torch.utils.data.sampler import RandomSampler
 from uncertainty_weight_loss import UncertaintyWeightLoss
 
-from model import GradNormLossModel, GradNormLossTrain, MTLRegression, MTLClassification
+from model import GradNormLossModel, GradNormLossTrain
+from model import MTLRegression, MTLClassification,MTLRegression_3p1,MTLClassification_3p1
 
 pad_index = 0
 unk_index = 1
@@ -257,10 +258,11 @@ def load_train_set_test_set(dataset_name):
     """
     # 将文件 处理为 1024列的tensor
 
-    # 需要重新改变种子获取tensor的时候使用这行
-    # X, Y, X_test, Y_test = prepare_data(dataset_name)
-
-    X, Y, X_test, Y_test = get_tensor_data(dataset_name)
+    if create_new_train_set:
+        # 需要重新改变种子获取tensor的时候使用这行
+        X, Y, X_test, Y_test = prepare_data(dataset_name)
+    else:
+        X, Y, X_test, Y_test = get_tensor_data(dataset_name)
     dataset_detail = get_dataset_detail()[dataset_name]
     # 构建训练和测试集
     dataloader = DataLoader(MyData(dataset_name, dataset_detail, trfm, X, Y), batch_size=batch_size)
@@ -397,7 +399,7 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
 
             if loss_type == 0:
                 # 自己的loss
-                loss = loss_function(out_list[index], label)
+                loss = loss_function(out_list[index], label) * dataset_rate[datasets_name[index]]
             else:
                 # 除了自己的loss 都需要 not_match_label和loss_temp
                 not_match_label = torch.zeros_like(label).to(label_type)
@@ -407,6 +409,7 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
                     for i in range(num_tasks):
                         if i != index:
                             loss_temp.append(loss_function(out_list[i], not_match_label))
+                            # loss_temp.append(loss_function(not_match_label, label))
                         else:
                             loss_temp.append(loss_function(out_list[index], label))
                     if loss_type == 1:
@@ -673,7 +676,7 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
 
 
 def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
-                     model_name, loss_type):
+                     model_name, loss_type,frame):
     """
 
     :param multi_tasks: 任务名字列表
@@ -686,6 +689,7 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
     :param model_save_path: 模型保存路径
     :param model_name: 模型名字
     :param loss_type: 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
+    :param frame: 0 是 2+2, 1 是 3+1
     :return:
     """
     datas = []
@@ -695,14 +699,19 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
     num_tasks = len(multi_tasks)
     if loss_type == 0 or loss_type == 1 or loss_type == 2 or loss_type == 3 or loss_type == 4:
         if mode == 0:
-            mode_name = "regression"
-            mtl_model = MTLRegression(input_size, hidden_size, tower_h1, tower_h2, num_tasks).to(device)
+            if frame == 0:
+                mtl_model = MTLRegression(input_size, hidden_size, tower_h1, tower_h2, num_tasks).to(device)
+            else:
+                mtl_model = MTLRegression_3p1(input_size, hidden_size, tower_h1, tower_h2, num_tasks).to(device)
             mtl_model.train()
             loss_list = train_model(mtl_model, multi_tasks, datas, loss_type, mode)
         else:
-            mode_name = "classification"
-            mtl_model = MTLClassification(input_size, hidden_size, num_classes, tower_h1, tower_h2, num_tasks).to(
-                device)
+            if frame == 0:
+                mtl_model = MTLClassification(input_size, hidden_size, num_classes, tower_h1, tower_h2, num_tasks).to(
+                    device)
+            else:
+                mtl_model = MTLClassification_3p1(input_size, hidden_size, num_classes, tower_h1, tower_h2, num_tasks).to(
+                    device)
             mtl_model.train()
             loss_list = train_model(mtl_model, multi_tasks, datas, loss_type, mode)
 
@@ -735,10 +744,10 @@ def regression_test(test_datasets_name, model_save_path, model_name, hyper_param
             RMSE = get_regression_RMSE(testloader, model_name, index, model_save_path)
             if float(RMSE) < single_task_score[test_dataset_name]:
                 compare_hint = "优于"
-                compare_rate = (single_task_score[test_dataset_name] - float(RMSE)) / single_task_score[test_dataset_name]
+                compare_rate = (single_task_score[test_dataset_name] - float(RMSE)) / single_task_score[test_dataset_name] * 100
             else:
                 compare_hint = "劣于"
-                compare_rate = (float(RMSE) - single_task_score[test_dataset_name]) / single_task_score[test_dataset_name]
+                compare_rate = (float(RMSE) - single_task_score[test_dataset_name]) / single_task_score[test_dataset_name] * 100
             print("{} {}单任务 {} -- {}%".format(RMSE,compare_hint,single_task_score[test_dataset_name],compare_rate))
             print("{} {}单任务 {} -- {}%".format(RMSE,compare_hint,single_task_score[test_dataset_name],compare_rate), file=f)
 
@@ -770,10 +779,10 @@ def classification_test(test_datasets_name, model_save_path, model_name, hyper_p
             print("{} %".format(accuracy), file=f)
             if float(auc_roc) > single_task_score[test_dataset_name]:
                 compare_hint = "优于"
-                compare_rate = (float(auc_roc) - single_task_score[test_dataset_name]) / single_task_score[test_dataset_name]
+                compare_rate = (float(auc_roc) - single_task_score[test_dataset_name]) / single_task_score[test_dataset_name] * 100
             else:
                 compare_hint = "劣于"
-                compare_rate = (single_task_score[test_dataset_name] - float(auc_roc)) / single_task_score[test_dataset_name]
+                compare_rate = (single_task_score[test_dataset_name] - float(auc_roc)) / single_task_score[test_dataset_name] * 100
             print("AUC:{:.4f} {}单任务 {} -- {}%".format(auc_roc,compare_hint,single_task_score[test_dataset_name],compare_rate))
             print("AUC:{:.4f} {}单任务 {} -- {}%".format(auc_roc,compare_hint,single_task_score[test_dataset_name],compare_rate), file=f)
             print(file=f)
@@ -784,17 +793,19 @@ def classification_test(test_datasets_name, model_save_path, model_name, hyper_p
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='多任务模式')
-    parser.add_argument('--num_epochs', '-n', type=int, default=2000, help="迭代次数")
+    parser.add_argument('--num_epochs', '-n', type=int, default=5000, help="迭代次数")
     parser.add_argument('--mode', '-m', choices=(0, 1), default=0,
                         help="模式选择 0是回归,1是分类")
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help="学习率")
     parser.add_argument('--batch_size', '-b', type=int, default=200, help="batch大小")
-    parser.add_argument('--hidden_size', '-h1', type=int, default=500, help="第二层神经元数量")
-    parser.add_argument('--tower_h1', '-h2', type=int, default=200, help="第三层神经元数量")
+    parser.add_argument('--hidden_size', '-h1', type=int, default=700, help="第二层神经元数量")
+    parser.add_argument('--tower_h1', '-h2', type=int, default=200 ,help="第三层神经元数量")
     parser.add_argument('--tower_h2', '-h3', type=int, default=50, help="第四层神经元数量")
     parser.add_argument('--alpha', '-a', type=float, default=0.12, help="grad norm的超参数")
     parser.add_argument('--seed', '-s', type=int, default=30, help="需要重新生成tensor数据的随机种子")
-    parser.add_argument('--model_name', '-mn', type=str, default="mtl1", help="模型名字(如已有则覆盖)")
+    parser.add_argument('--create_new_train_set', '-c', type=bool, choices=(True, False),default=False, help="重新生成新的tensor数据(如已有则覆盖)")
+    parser.add_argument('--model_name', '-mn', type=str, default="mtl10", help="模型名字(如已有则覆盖)")
+    parser.add_argument('--frame', '-f', type=int,choices=(0, 1), default=0, help="0 是 2+2, 1 是 3+1")
     parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5), type=int, default=0,
                         help="0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss")
     args = parser.parse_args()
@@ -806,6 +817,8 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     num_epochs = args.num_epochs
     model_name = args.model_name
+    create_new_train_set = args.create_new_train_set
+    frame = args.frame
     num_classes = 2
     input_size = 1024
 
@@ -835,8 +848,8 @@ if __name__ == "__main__":
 
 
     datasets_name = get_all_dataset()
-    datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-    datasets_name = ["esol.csv", "freesolv.csv", "lipo.csv"]
+    datasets_name_classification = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+    datasets_name_regression = ["esol.csv", "freesolv.csv", "lipo.csv"]
 
 
     hyper_parameters = {
@@ -849,7 +862,10 @@ if __name__ == "__main__":
         "tower_h1": tower_h1,
         "tower_h2": tower_h2,
         "alpha": alpha,
-        "seed": seed
+        "seed": seed,
+        "create_new_train_set":create_new_train_set,
+        "loss_type":loss_type,
+        "frame":frame
     }
 
     model_save_path = "mtl_model/"
@@ -884,8 +900,12 @@ if __name__ == "__main__":
 
     if mode == 0:
         print("训练回归任务")
+        mode_name = "regression"
+        multi_tasks = datasets_name_regression
     else:
         print("训练分类任务")
+        mode_name = "classification"
+        multi_tasks = datasets_name_classification
     print(loss_type_hint)
     single_task_score = {
         "bace.csv": 0.8456,
@@ -899,36 +919,40 @@ if __name__ == "__main__":
         "freesolv.csv": 1.6867,
         "lipo.csv": 0.9607,
     }
-    multi_tasks = []
-    for i in range(0,len(datasets_name)):
-        for j in range(i + 1,len(datasets_name)):
-            multi_tasks.append(datasets_name[i])
-            multi_tasks.append(datasets_name[j])
-            model_name = "mtl_{}_{}".format(multi_tasks[0].split(".")[0],multi_tasks[1].split(".")[0])
-            if mode == 0:
-                # 回归
-                # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
-                # multi_tasks = ["freesolv.csv", "lipo.csv", "esol.csv"]
-                # 普通多任务
-                multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
-                                 model_name, loss_type)
-                # regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type)
-                # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
-                test_datasets_name = multi_tasks
-                regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
-            else:
-                # 分类
-                # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-                # multi_tasks = ["clintox.csv", "bbbp.csv"]
-                # 普通多任务
-                multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
-                                 model_name, loss_type)
-                # classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type)
-                # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-                test_datasets_name = multi_tasks
-                classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
-            multi_tasks.clear()
-            print()
+
+    if frame == 1:
+        model_name += "-3p1"
+    if os.path.exists("{}/{}_{}.pt".format(model_save_path, mode_name, model_name)):
+        input('WARNING: Name of model "{}_{}" already exists in path {}, press enter to OVERWRITE model'.format(mode_name,model_name,model_save_path))
+
+    # for i in range(1):
+    #     for j in range(1):
+            # multi_tasks.append(datasets_name[i])
+            # multi_tasks.append(datasets_name[j])
+    # model_name = "mtl_7_tasks"#.format(multi_tasks[0].split(".")[0],multi_tasks[1].split(".")[0])
+    if mode == 0:
+        # 回归
+        # multi_tasks = ["freesolv.csv", "lipo.csv","esol.csv"]
+        # multi_tasks = ["freesolv.csv", "lipo.csv", "esol.csv"]
+        # 普通多任务
+        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                         model_name, loss_type,frame)
+        # regression_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,regression_model_name,loss_type)
+        # test_datasets_name = ["freesolv.csv", "lipo.csv","esol.csv"]
+        test_datasets_name = multi_tasks
+        regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
+    else:
+        # 分类
+        # multi_tasks = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        # multi_tasks = ["clintox.csv", "bbbp.csv"]
+        # 普通多任务
+        multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
+                         model_name, loss_type,frame)
+        # classification_mode(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes,model_save_path,classfication_model_name,loss_type)
+        # test_datasets_name = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
+        test_datasets_name = multi_tasks
+        classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters)
+    # multi_tasks.clear()
 '''
 分类:
 ["clintox.csv","sider.csv"]

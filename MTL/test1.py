@@ -23,8 +23,6 @@ import torch
 # print(args.hidden_size_3)
 
 
-def f(*x):
-    print(x)
+a = {"1":2,"3":5}
 
-f((1,2,3))
-
+print(a[i] for i in a.keys())
