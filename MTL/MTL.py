@@ -312,7 +312,7 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
        :param mtl_model: 模型
        :param datasets_name: 任务名字列表
        :param dataloaders:
-       :param loss_type: 损失函数的种类,0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight
+       :param loss_type: 损失函数的种类,0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight, 6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均
        :param mode 0是回归,1是分类
        :return: 所有数据集的loss
        """
@@ -395,10 +395,17 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
             out_list = mtl_model(data)  # MLP在训练batch上的输出
 
             # loss_type: 损失函数的种类,0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight
+            # 6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均
 
 
             if loss_type == 0:
                 # 自己的loss
+                loss = loss_function(out_list[index], label)
+            elif loss_type == 6:
+                # 自己的loss 上使用平均
+                loss = loss_function(out_list[index], label) / num_tasks
+            elif loss_type == 7:
+                # 在自己的loss 上使用经验平均
                 loss = loss_function(out_list[index], label) * dataset_rate[datasets_name[index]]
             else:
                 # 除了自己的loss 都需要 not_match_label和loss_temp
@@ -688,7 +695,7 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
     :param num_classes: 分类数量
     :param model_save_path: 模型保存路径
     :param model_name: 模型名字
-    :param loss_type: 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
+    :param loss_type: 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss,6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均
     :param frame: 0 是 2+2, 1 是 3+1
     :return:
     """
@@ -697,7 +704,7 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
         data, test = load_train_set_test_set(multi_task)
         datas.append(data)
     num_tasks = len(multi_tasks)
-    if loss_type == 0 or loss_type == 1 or loss_type == 2 or loss_type == 3 or loss_type == 4:
+    if loss_type == 0 or loss_type == 1 or loss_type == 2 or loss_type == 3 or loss_type == 4 or loss_type == 6 or loss_type == 7:
         if mode == 0:
             if frame == 0:
                 mtl_model = MTLRegression(input_size, hidden_size, tower_h1, tower_h2, num_tasks).to(device)
@@ -719,10 +726,13 @@ def multi_task_learn(multi_tasks, mode, input_size, hidden_size, tower_h1, tower
         plt.title("{}_{}".format(mode_name, model_name))
         plt.show()
         torch.save(mtl_model, '{}/{}_{}.pt'.format(model_save_path, mode_name, model_name))
-    else:
+    elif loss_type == 5:
         # gradnorm loss
         grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h2, num_classes, model_save_path,
                        model_name, datas)
+    else:
+        print("Fatal error: undefined loss_type! ")
+        time.sleep(10000)
 
 
 def regression_test(test_datasets_name, model_save_path, model_name, hyper_parameters):
@@ -793,21 +803,21 @@ def classification_test(test_datasets_name, model_save_path, model_name, hyper_p
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='多任务模式')
-    parser.add_argument('--num_epochs', '-n', type=int, default=5000, help="迭代次数")
-    parser.add_argument('--mode', '-m', choices=(0, 1), default=0,
+    parser.add_argument('--num_epochs', '-n', type=int, default=2000, help="迭代次数")
+    parser.add_argument('--mode', '-m', choices=(0, 1), default=1,
                         help="模式选择 0是回归,1是分类")
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help="学习率")
-    parser.add_argument('--batch_size', '-b', type=int, default=200, help="batch大小")
-    parser.add_argument('--hidden_size', '-h1', type=int, default=700, help="第二层神经元数量")
-    parser.add_argument('--tower_h1', '-h2', type=int, default=200 ,help="第三层神经元数量")
-    parser.add_argument('--tower_h2', '-h3', type=int, default=50, help="第四层神经元数量")
+    parser.add_argument('--batch_size', '-b', type=int, default=2000, help="batch大小")
+    parser.add_argument('--hidden_size', '-h1', type=int, default=512, help="第二层神经元数量")
+    parser.add_argument('--tower_h1', '-h2', type=int, default=256 ,help="第三层神经元数量")
+    parser.add_argument('--tower_h2', '-h3', type=int, default=128, help="第四层神经元数量")
     parser.add_argument('--alpha', '-a', type=float, default=0.12, help="grad norm的超参数")
     parser.add_argument('--seed', '-s', type=int, default=30, help="需要重新生成tensor数据的随机种子")
     parser.add_argument('--create_new_train_set', '-c', type=bool, choices=(True, False),default=False, help="重新生成新的tensor数据(如已有则覆盖)")
-    parser.add_argument('--model_name', '-mn', type=str, default="mtl10", help="模型名字(如已有则覆盖)")
+    parser.add_argument('--model_name', '-mn', type=str, default="mtl1", help="模型名字(如已有则覆盖)")
     parser.add_argument('--frame', '-f', type=int,choices=(0, 1), default=0, help="0 是 2+2, 1 是 3+1")
-    parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5), type=int, default=0,
-                        help="0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss")
+    parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5, 6, 7), type=int, default=6,
+                        help="0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss,6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均")
     args = parser.parse_args()
 
     hidden_size = args.hidden_size
@@ -830,7 +840,7 @@ if __name__ == "__main__":
     # grad norm的超参数
     alpha = args.alpha
 
-    # loss_type 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss
+    # loss_type 0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss,6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均
     loss_type = args.loss_type
 
     # 需要重新生成tensor数据的随机种子,修改后需要在 func:load_train_set_test_set() 中取消对prepare_data()的注释
@@ -892,9 +902,18 @@ if __name__ == "__main__":
     elif loss_type == 4:
         model_save_path += "self_loss_with_uncertainty_model"
         loss_type_hint = "在自己的 loss 上使用 uncertainty weight"
-    else:
+    elif loss_type == 5:
         model_save_path += "grad_norm_loss_model"
         loss_type_hint = "grad norm loss"
+    elif loss_type == 6:
+        model_save_path += "self_loss_with_average_loss"
+        loss_type_hint = "自己的 loss 平均加权"
+    elif loss_type == 7:
+        model_save_path += "self_loss_with_experience_loss"
+        loss_type_hint = "自己的 loss 经验比例加权"
+    else:
+        print("Fatal error: undefined loss_type! ")
+        time.sleep(10000)
 
     hyper_parameters["loss_type"] = loss_type_hint
 
