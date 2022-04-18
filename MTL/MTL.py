@@ -672,7 +672,7 @@ def grad_norm_loss(multi_tasks, mode, input_size, hidden_size, tower_h1, tower_h
     plt2.plot(grad_norm_losses)
     plt3.plot(weights[:, 0])
     plt3.plot(weights[:, 1])
-    plt3.plot(weights[:, 2])
+    # plt3.plot(weights[:, 2])
 
     plt.show()
     if mode == 0:
@@ -804,19 +804,19 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='多任务模式')
     parser.add_argument('--num_epochs', '-n', type=int, default=2000, help="迭代次数")
-    parser.add_argument('--mode', '-m', choices=(0, 1), default=1,
+    parser.add_argument('--mode', '-m', choices=(0, 1), default=0,
                         help="模式选择 0是回归,1是分类")
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.001, help="学习率")
-    parser.add_argument('--batch_size', '-b', type=int, default=2000, help="batch大小")
+    parser.add_argument('--batch_size', '-b', type=int, default=200, help="batch大小")
     parser.add_argument('--hidden_size', '-h1', type=int, default=512, help="第二层神经元数量")
     parser.add_argument('--tower_h1', '-h2', type=int, default=256 ,help="第三层神经元数量")
     parser.add_argument('--tower_h2', '-h3', type=int, default=128, help="第四层神经元数量")
     parser.add_argument('--alpha', '-a', type=float, default=0.12, help="grad norm的超参数")
     parser.add_argument('--seed', '-s', type=int, default=30, help="需要重新生成tensor数据的随机种子")
     parser.add_argument('--create_new_train_set', '-c', type=bool, choices=(True, False),default=False, help="重新生成新的tensor数据(如已有则覆盖)")
-    parser.add_argument('--model_name', '-mn', type=str, default="mtl1", help="模型名字(如已有则覆盖)")
+    parser.add_argument('--model_name', '-mn', type=str, default="mtl20", help="模型名字(如已有则覆盖)")
     parser.add_argument('--frame', '-f', type=int,choices=(0, 1), default=0, help="0 是 2+2, 1 是 3+1")
-    parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5, 6, 7), type=int, default=6,
+    parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5, 6, 7), type=int, default=0,
                         help="0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss,6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均")
     args = parser.parse_args()
 
@@ -859,7 +859,8 @@ if __name__ == "__main__":
 
     datasets_name = get_all_dataset()
     datasets_name_classification = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv"]
-    datasets_name_regression = ["esol.csv", "freesolv.csv", "lipo.csv"]
+    # datasets_name_regression = ["esol.csv","freesolv.csv", "lipo.csv"]
+    datasets_name_regression = ["freesolv.csv", "lipo.csv"]
 
 
     hyper_parameters = {
@@ -877,6 +878,8 @@ if __name__ == "__main__":
         "loss_type":loss_type,
         "frame":frame
     }
+    for key in hyper_parameters.keys():
+        print("{} : {}".format(key,hyper_parameters[key]))
 
     model_save_path = "mtl_model/"
 
@@ -913,7 +916,7 @@ if __name__ == "__main__":
         loss_type_hint = "自己的 loss 经验比例加权"
     else:
         print("Fatal error: undefined loss_type! ")
-        time.sleep(10000)
+        time.sleep(100000)
 
     hyper_parameters["loss_type"] = loss_type_hint
 
