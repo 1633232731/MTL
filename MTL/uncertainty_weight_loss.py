@@ -30,5 +30,6 @@ class UncertaintyWeightLoss(nn.Module):
 
 
 if __name__ == '__main__':
+
     awl = UncertaintyWeightLoss(7)
     print(awl.parameters())
