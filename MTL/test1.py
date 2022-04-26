@@ -23,6 +23,15 @@ import torch
 # print(args.hidden_size_3)
 
 
-a = {"1":2,"3":5}
+# a = {"1":2,"3":5}
+#
+# print(a[i] for i in a.keys())
+#
+# a = [1,4,8,16]
+#
+# for i in a:
+#     print(i)
 
-print(a[i] for i in a.keys())
+dir_info= {'a':1,'d':8,'c':3,'b':5}
+#对字典按键（key）进行排序（默认由小到大）
+print(dir_info[0])
