@@ -5,17 +5,6 @@ import torch.nn as nn
 
 
 class UncertaintyWeightLoss(nn.Module):
-    """
-    balance loss method, uncertainty weighting
-    Params：
-        num: int，the number of loss
-        x: multi-task loss
-    Examples：
-        loss1=1
-        loss2=2
-        awl = AutomaticWeightedLoss(2)
-        loss_sum = awl(loss1, loss2)
-    """
 
     def __init__(self, num=2):
         super(UncertaintyWeightLoss, self).__init__()

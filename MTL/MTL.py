@@ -434,8 +434,7 @@ def train_model(mtl_model, datasets_name, dataloaders, loss_type, mode):
                     elif loss_type == 3:
                         loss = awl(loss_temp)
                 else:
-                    # TODO: 是在自己的 loss 上使用 uncertainty weight
-                    loss = 0
+                    loss = loss_function(out_list[index], label)
                     # for temp in loss_temp:
                     #     loss += temp / temp.detach()
 
@@ -846,7 +845,7 @@ if __name__ == "__main__":
     parser.add_argument('--create_new_train_set', '-c', type=bool, choices=(True, False),default=False, help="重新生成新的tensor数据(如已有则覆盖)")
     parser.add_argument('--model_name', '-mn', type=str, default="mtl1", help="模型名字(如已有则覆盖)")
     parser.add_argument('--frame', '-f', type=int,choices=(0, 1), default=0, help="0 是 2+2, 1 是 3+1")
-    parser.add_argument('--train_test', '-tt', type=int,choices=(0, 1), default=1, help="0 是训练并测试, 1 是测试")
+    parser.add_argument('--train_test', '-tt', type=int,choices=(0, 1), default=0, help="0 是训练并测试, 1 是测试")
 
     parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5, 6, 7), type=int, default=7,
                         help="0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss,6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均")

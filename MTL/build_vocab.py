@@ -5,41 +5,42 @@ from collections import Counter
 
 class TorchVocab(object):
     """
-    :property freqs: collections.Counter, コーパス中の単語の出現頻度を保持するオブジェクト
-    :property stoi: collections.defaultdict, string → id の対応を示す辞書
-    :property itos: collections.defaultdict, id → string の対応を示す辞書
+    :property freqs: collections.Counter，一个保存语料库中词汇出现频率的对象。
+    :property stoi: collections.defaultdict，一个字符串→id的对应字典。
+    :property itos: collections.defaultdict, id → string之间的对应字典。
     """
+
     def __init__(self, counter, max_size=None, min_freq=1, specials=['<pad>', '<oov>'],
                  vectors=None, unk_init=None, vectors_cache=None):
         """
-        :param counter: collections.Counter, データ中に含まれる単語の頻度を計測するためのcounter
-        :param max_size: int, vocabularyの最大のサイズ. Noneの場合は最大値なし. defaultはNone
-        :param min_freq: int, vocabulary中の単語の最低出現頻度. この数以下の出現回数の単語はvocabularyに加えられない.
-        :param specials: list of str, vocabularyにあらかじめ登録するtoken
-        :param vectors: list of vectors, 事前学習済みのベクトル. ex)Vocab.load_vectors
-        """
+     : param counter: collections.Counter，用于测量数据中单词出现频率的计数器
+     : param max_size: int, 词汇表的最大大小。如果没有，则没有最大值。默认为无
+     : param min_freq: int, 词在词表中出现的最小频率。少于这个出现次数的词不能加入词表。
+     : param specials: str 列表，在词汇表中预注册
+     ：param vectors：向量列表，预训练向量。例如）Vocab.load_vectors
+     """
         self.freqs = counter
         counter = counter.copy()
         min_freq = max(min_freq, 1)
 
         self.itos = list(specials)
-        # special tokensの出現頻度はvocabulary作成の際にカウントされない
+        # special tokens创建词汇表时不计算出现频率
         for tok in specials:
             del counter[tok]
 
         max_size = None if max_size is None else max_size + len(self.itos)
 
-        # まず頻度でソートし、次に文字順で並び替える
+        # 先按频率排序，再按字母排序
         words_and_frequencies = sorted(counter.items(), key=lambda tup: tup[0])
         words_and_frequencies.sort(key=lambda tup: tup[1], reverse=True)
-        
-        # 出現頻度がmin_freq未満のものはvocabに加えない
+
+        # 如果出现频率小于 min_freq，则不要添加到 vocab
         for word, freq in words_and_frequencies:
             if freq < min_freq or len(self.itos) == max_size:
                 break
             self.itos.append(word)
 
-        # dictのk,vをいれかえてstoiを作成する
+        # 通过替换 dict 的 k 和 v 来创建 stoi
         self.stoi = {tok: i for i, tok in enumerate(self.itos)}
 
         self.vectors = None
@@ -80,13 +81,14 @@ class Vocab(TorchVocab):
         self.eos_index = 2
         self.sos_index = 3
         self.mask_index = 4
-        super().__init__(counter, specials=["<pad>", "<unk>", "<eos>", "<sos>", "<mask>"], max_size=max_size, min_freq=min_freq)
+        super().__init__(counter, specials=["<pad>", "<unk>", "<eos>", "<sos>", "<mask>"], max_size=max_size,
+                         min_freq=min_freq)
 
-    # override用
+    # override
     def to_seq(self, sentece, seq_len, with_eos=False, with_sos=False) -> list:
         pass
 
-    # override用
+    # override
     def from_seq(self, seq, join=False, with_pad=False):
         pass
 
@@ -100,7 +102,7 @@ class Vocab(TorchVocab):
             pickle.dump(self, f)
 
 
-# テキストファイルからvocabを作成する
+# 从文本文件创建Vocab
 class WordVocab(Vocab):
     def __init__(self, texts, max_size=None, min_freq=1):
         print("Building Vocab")
@@ -122,7 +124,7 @@ class WordVocab(Vocab):
         seq = [self.stoi.get(word, self.unk_index) for word in sentence]
 
         if with_eos:
-            seq += [self.eos_index]  # this would be index 1
+            seq += [self.eos_index]  # index = 1
         if with_sos:
             seq = [self.sos_index] + seq
 
@@ -154,7 +156,8 @@ class WordVocab(Vocab):
 
 def main():
     parser = argparse.ArgumentParser(description='Build a vocabulary pickle')
-    parser.add_argument('--corpus_path', '-c', type=str, default='dataset/chembl24_corpus.txt', help='path to th ecorpus')
+    parser.add_argument('--corpus_path', '-c', type=str, default='dataset/chembl24_corpus.txt',
+                        help='path to th ecorpus')
     parser.add_argument('--out_path', '-o', type=str, default='dataset/vocab.pkl', help='output file')
     parser.add_argument('--min_freq', '-m', type=int, default=500, help='minimum frequency for vocabulary')
     parser.add_argument('--vocab_size', '-v', type=int, default=None, help='max vocabulary size')
@@ -167,5 +170,6 @@ def main():
     print("VOCAB SIZE:", len(vocab))
     vocab.save_vocab(args.out_path)
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     main()
