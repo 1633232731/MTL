@@ -50,7 +50,7 @@ class GradNormLossTrain(torch.nn.Module):
                     task_loss.append(self.loss_function(torch.zeros_like(ys[index].squeeze(dim=1)), target))
                 else:
                     # 分类
-                    task_loss.append(self.loss_function(ys[index], torch.zeros_like(ys[index][:,1])))
+                    task_loss.append(self.loss_function(ys[index], torch.zeros_like(ys[index][:,1]).to(torch.int64)))
         task_loss = torch.stack(task_loss)
         return task_loss
 
