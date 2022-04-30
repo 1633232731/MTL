@@ -778,7 +778,7 @@ def regression_test(test_datasets_name, model_save_path, model_name, hyper_param
         print(file=f)
 
 
-def classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters):
+def classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters,train_test):
     with open("{}/result.txt".format(model_save_path), "a+", encoding="utf-8") as f:
         print(model_name, file=f)
         print(file=f)
