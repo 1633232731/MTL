@@ -778,7 +778,7 @@ def regression_test(test_datasets_name, model_save_path, model_name, hyper_param
         print(file=f)
 
 
-def classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters):
+def classification_test(test_datasets_name, model_save_path, model_name, hyper_parameters,train_test):
     with open("{}/result.txt".format(model_save_path), "a+", encoding="utf-8") as f:
         print(model_name, file=f)
         print(file=f)
@@ -833,10 +833,10 @@ if __name__ == "__main__":
     """
     parser = argparse.ArgumentParser(description='多任务模式')
     parser.add_argument('--num_epochs', '-n', type=int, default=1000, help="迭代次数")
-    parser.add_argument('--mode', '-m', choices=(0, 1), default=0,
+    parser.add_argument('--mode', '-m', choices=(0, 1), default=1,
                         help="模式选择 0是回归,1是分类")
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.0001, help="学习率")
-    parser.add_argument('--batch_size', '-b', type=int, default=200, help="batch大小")
+    parser.add_argument('--batch_size', '-b', type=int, default=20000, help="batch大小")
     parser.add_argument('--hidden_size', '-h1', type=int, default=512, help="第二层神经元数量")
     parser.add_argument('--tower_h1', '-h2', type=int, default=256 ,help="第三层神经元数量")
     parser.add_argument('--tower_h2', '-h3', type=int, default=128, help="第四层神经元数量")
@@ -847,7 +847,7 @@ if __name__ == "__main__":
     parser.add_argument('--frame', '-f', type=int,choices=(0, 1), default=0, help="0 是 2+2, 1 是 3+1")
     parser.add_argument('--train_test', '-tt', type=int,choices=(0, 1), default=0, help="0 是训练并测试, 1 是测试")
 
-    parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5, 6, 7), type=int, default=7,
+    parser.add_argument('--loss_type', '-l', choices=(0, 1, 2, 3, 4, 5, 6, 7), type=int, default=5,
                         help="0是计算自己的loss,1是全部loss平均加权,2是全部loss经验比例加权,3是uncertainty weight比例加权,4是在自己的loss 上使用 uncertainty weight,5是grad norm loss,6是在自己的loss 上使用平均,7是在自己的loss 上使用经验平均")
     args = parser.parse_args()
 

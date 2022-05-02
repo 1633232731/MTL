@@ -1,6 +1,8 @@
+import random
 from typing import List
 
 import numpy
+import numpy as np
 import pandas as pd
 from sklearn.utils import shuffle as reset
 import torch
@@ -177,7 +179,7 @@ def get_array(smiles):
     return torch.tensor(x_id), torch.tensor(x_seg)
 
 def prepare_data(dataset_name):
-    seed = 30
+
     dataset_detail = get_dataset_detail()[dataset_name]
     df = pd.read_csv('dataset/{}'.format(dataset_name))
     if dataset_name == "bace.csv":
@@ -217,13 +219,17 @@ if __name__ == "__main__":
     mask_index = 4
     vocab = load_vocal()
     trfm = load_transformer(vocab)
-
-    t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
-         "freesolv.csv", "lipo.csv"]
+    #
+    # t = ["bace.csv", "bbbp.csv", "clintox.csv", "HIV.csv", "muv.csv", "tox21.csv", "sider.csv", "esol.csv",
+    #      "freesolv.csv", "lipo.csv"]
     datasets_name = get_all_dataset()
     # datasets_name = ["bace.csv"]
-
-    import numpy
+    seed = 30
+    torch.manual_seed(seed)  # 为CPU设置随机种子
+    torch.cuda.manual_seed(seed) # 为当前GPU设置随机种子
+    torch.cuda.manual_seed_all(seed) # 为所有GPU设置随机种子
+    random.seed(seed)
+    np.random.seed(seed)
     for dataset_name in datasets_name:
         s = []
         X, Y, X_test, Y_test = prepare_data(dataset_name)
